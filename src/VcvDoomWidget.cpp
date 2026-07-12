@@ -10,6 +10,9 @@ extern "C" {
 	extern volatile int doom_engine_status;
 	extern char doom_engine_error[256];
 	void I_CopyTargetRGBA(uint8_t *buffer);
+	extern volatile int g_cv_warp_epsd;
+	extern volatile int g_cv_warp_map;
+	extern volatile int g_cv_cheat_request;
 }
 
 static int mapGlfwToDoomKey(int glfwKey) {
@@ -506,6 +509,84 @@ struct VcvDoomWidget final : ModuleWidget {
 				}
 			}
 		}));
+
+		menu->addChild(createIndexSubmenuItem("X-Move Mode",
+			{"Strafe", "Rotate"},
+			[=]() {
+				return (size_t)m->xMoveMode;
+			},
+			[=](size_t mode) {
+				m->xMoveMode = (int)mode;
+			}
+		));
+
+		if (doom_engine_status == 2) {
+			menu->addChild(createSubmenuItem("Warp to Level", "", [=](Menu* submenu) {
+				if (gamemode != commercial) {
+					// Doom 1 style: Episodes & Missions
+					for (int ep = 1; ep <= 5; ++ep) {
+						if (D_ValidEpisodeMap(gamemission, gamemode, ep, 1)) {
+							std::string epName = "Episode " + std::to_string(ep);
+							submenu->addChild(createSubmenuItem(epName, "", [=](Menu* epmenu) {
+								for (int map = 1; map <= 9; ++map) {
+									if (D_ValidEpisodeMap(gamemission, gamemode, ep, map)) {
+										std::string mapLabel = "Mission " + std::to_string(map);
+										epmenu->addChild(createMenuItem(mapLabel, "", [=]() {
+											g_cv_warp_epsd = ep;
+											g_cv_warp_map = map;
+										}));
+									}
+								}
+							}));
+						}
+					}
+				} else {
+					// Doom 2 style: Single episode with sequential MAPs
+					int totalMaps = 0;
+					for (int map = 1; map <= 60; ++map) {
+						if (D_ValidEpisodeMap(gamemission, gamemode, 1, map)) {
+							totalMaps = map;
+						}
+					}
+					
+					if (totalMaps <= 10) {
+						for (int map = 1; map <= totalMaps; ++map) {
+							std::string mapLabel = std::string("MAP ") + (map < 10 ? "0" : "") + std::to_string(map);
+							submenu->addChild(createMenuItem(mapLabel, "", [=]() {
+								g_cv_warp_epsd = 1;
+								g_cv_warp_map = map;
+							}));
+						}
+					} else {
+						for (int startMap = 1; startMap <= totalMaps; startMap += 10) {
+							int endMap = (startMap + 9 < totalMaps) ? (startMap + 9) : totalMaps;
+							std::string groupLabel = std::string("MAPs ") + (startMap < 10 ? "0" : "") + std::to_string(startMap) + " - " + (endMap < 10 ? "0" : "") + std::to_string(endMap);
+							submenu->addChild(createSubmenuItem(groupLabel, "", [=](Menu* groupmenu) {
+								for (int map = startMap; map <= endMap; ++map) {
+									std::string mapLabel = std::string("MAP ") + (map < 10 ? "0" : "") + std::to_string(map);
+									groupmenu->addChild(createMenuItem(mapLabel, "", [=]() {
+										g_cv_warp_epsd = 1;
+										g_cv_warp_map = map;
+									}));
+								}
+							}));
+						}
+					}
+				}
+			}));
+
+			menu->addChild(createSubmenuItem("Cheats", "", [=](Menu* submenu) {
+				submenu->addChild(createMenuItem("IDDQD (God Mode)", "", [=]() {
+					g_cv_cheat_request = 1;
+				}));
+				submenu->addChild(createMenuItem("IDKFA (Ammo/Keys/Weapons)", "", [=]() {
+					g_cv_cheat_request = 2;
+				}));
+				submenu->addChild(createMenuItem("IDCLIP (Noclip)", "", [=]() {
+					g_cv_cheat_request = 3;
+				}));
+			}));
+		}
 
 		menu->addChild(createMenuItem("Save Doom Game State to Patch", "", [=]() {
 			m->triggerExplicitSave();

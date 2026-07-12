@@ -57,6 +57,10 @@ volatile float g_cv_xmove = 0.0f;
 volatile float g_cv_ymove = 0.0f;
 volatile int g_cv_fire = 0;
 volatile int g_cv_weapon = -1;
+volatile int g_cv_xmove_mode = 1;
+volatile int g_cv_warp_epsd = 0;
+volatile int g_cv_warp_map = 0;
+volatile int g_cv_cheat_request = 0;
 
 void I_SetPalette(byte* palette)
 {

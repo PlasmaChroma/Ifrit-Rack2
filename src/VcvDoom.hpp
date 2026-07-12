@@ -32,6 +32,7 @@ struct VcvDoomModule : Module {
 	std::string wadPath = "";
 	bool hasWad = false;
 	std::string savedGameHex = "";
+	int xMoveMode = 1; // 0 = strafe, 1 = rotate
 
 	std::atomic<bool> dirtyFrame{false};
 	int fragTrigTime = 0;

@@ -19,6 +19,7 @@ extern "C" {
 	extern volatile float g_cv_ymove;
 	extern volatile int g_cv_fire;
 	extern volatile int g_cv_weapon;
+	extern volatile int g_cv_xmove_mode;
 	extern volatile int g_game_health;
 	extern volatile int g_game_frag_trigger;
 
@@ -134,6 +135,7 @@ void VcvDoomModule::process(const ProcessArgs& args) {
 	if (engineAccess.acquired && gDoomModuleOwner == this && hasWad
 			&& doom_engine_status == 2 && !isBypassed()) {
 		// 1. Process CV Inputs
+		g_cv_xmove_mode = xMoveMode;
 		g_cv_xmove = inputs[X_MOVE_INPUT].getNormalVoltage(0.f);
 		g_cv_ymove = inputs[Y_MOVE_INPUT].getNormalVoltage(0.f);
 		g_cv_fire = (inputs[FIRE_GATE_INPUT].getNormalVoltage(0.f) >= 1.f) ? 1 : 0;
@@ -511,10 +513,16 @@ static std::vector<uint8_t> decodeHex(const std::string& hex) {
 json_t* VcvDoomModule::dataToJson() {
 	json_t* rootJ = json_object();
 	json_object_set_new(rootJ, "saveGameHex", json_string(savedGameHex.c_str()));
+	json_object_set_new(rootJ, "xMoveMode", json_integer(xMoveMode));
 	return rootJ;
 }
 
 void VcvDoomModule::dataFromJson(json_t* rootJ) {
+	json_t* modeJ = json_object_get(rootJ, "xMoveMode");
+	if (modeJ && json_is_integer(modeJ)) {
+		xMoveMode = json_integer_value(modeJ);
+	}
+
 	json_t* hexJ = json_object_get(rootJ, "saveGameHex");
 	if (hexJ && json_is_string(hexJ)) {
 		savedGameHex = json_string_value(hexJ);

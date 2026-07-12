@@ -601,6 +601,7 @@ void G_BuildTiccmd (ticcmd_t* cmd, int maketic)
     extern volatile float g_cv_ymove;
     extern volatile int g_cv_fire;
     extern volatile int g_cv_weapon;
+    extern volatile int g_cv_xmove_mode;
 
     float cv_x = g_cv_xmove;
     float cv_y = g_cv_ymove;
@@ -610,14 +611,24 @@ void G_BuildTiccmd (ticcmd_t* cmd, int maketic)
     if (cv_y < -5.f) cv_y = -5.f;
     if (cv_y > 5.f) cv_y = 5.f;
 
-    int cv_side = (int)(cv_x * 10.f);
+    if (g_cv_xmove_mode == 1)
+    {
+        // Rotate mode: negative CV turns left, positive CV turns right.
+        // Doom angleturn values: negative turns right, positive turns left.
+        // Fast key turn is 1280. 5.f * 256.f = 1280.
+        int cv_turn = (int)(cv_x * 256.f);
+        cmd->angleturn -= cv_turn;
+    }
+    else
+    {
+        int cv_side = (int)(cv_x * 10.f);
+        cmd->sidemove += cv_side;
+        if (cmd->sidemove > MAXPLMOVE) cmd->sidemove = MAXPLMOVE;
+        else if (cmd->sidemove < -MAXPLMOVE) cmd->sidemove = -MAXPLMOVE;
+    }
+
     int cv_forward = (int)(cv_y * 10.f);
-
-    cmd->sidemove += cv_side;
     cmd->forwardmove += cv_forward;
-
-    if (cmd->sidemove > MAXPLMOVE) cmd->sidemove = MAXPLMOVE;
-    else if (cmd->sidemove < -MAXPLMOVE) cmd->sidemove = -MAXPLMOVE;
     if (cmd->forwardmove > MAXPLMOVE) cmd->forwardmove = MAXPLMOVE;
     else if (cmd->forwardmove < -MAXPLMOVE) cmd->forwardmove = -MAXPLMOVE;
 
@@ -898,6 +909,65 @@ void G_Ticker (void)
     int		i;
     int		buf; 
     ticcmd_t*	cmd;
+    
+    // Check for level warp requested from VCV Rack UI
+    extern volatile int g_cv_warp_epsd;
+    extern volatile int g_cv_warp_map;
+    if (g_cv_warp_map > 0)
+    {
+        int epsd = g_cv_warp_epsd;
+        int map = g_cv_warp_map;
+        g_cv_warp_map = 0; // Reset request
+        G_DeferedInitNew(gameskill, epsd, map);
+    }
+
+    // Check for cheats requested from VCV Rack UI
+    extern volatile int g_cv_cheat_request;
+    if (g_cv_cheat_request > 0)
+    {
+        int req = g_cv_cheat_request;
+        g_cv_cheat_request = 0; // Reset request
+        player_t* plyr = &players[consoleplayer];
+        if (req == 1) // IDDQD
+        {
+            plyr->cheats ^= CF_GODMODE;
+            if (plyr->cheats & CF_GODMODE)
+            {
+                if (plyr->mo)
+                    plyr->mo->health = 100;
+                plyr->health = 100;
+                plyr->message = DEH_String("Degreelessness Mode On");
+            }
+            else 
+            {
+                plyr->message = DEH_String("Degreelessness Mode Off");
+            }
+        }
+        else if (req == 2) // IDKFA
+        {
+            plyr->armorpoints = 200;
+            plyr->armortype = 2; // megaarmor
+            
+            for (int w = 0; w < NUMWEAPONS; w++)
+                plyr->weaponowned[w] = true;
+            
+            for (int a = 0; a < NUMAMMO; a++)
+                plyr->ammo[a] = plyr->maxammo[a];
+            
+            for (int k = 0; k < NUMCARDS; k++)
+                plyr->cards[k] = true;
+            
+            plyr->message = DEH_String("Keys Added / Ammo Added");
+        }
+        else if (req == 3) // IDCLIP
+        {
+            plyr->cheats ^= CF_NOCLIP;
+            if (plyr->cheats & CF_NOCLIP)
+                plyr->message = DEH_String("No Clipping On");
+            else
+                plyr->message = DEH_String("No Clipping Off");
+        }
+    }
     
     // do player reborns if needed
     for (i=0 ; i<MAXPLAYERS ; i++) 
