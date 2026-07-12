@@ -33,6 +33,7 @@ mixer_channel_t g_mixer_channels[MIXER_CHANNELS];
 
 void I_InitSound(boolean use_sfx_prefix)
 {
+    I_ShutdownSound();
     for (int i = 0; i < MIXER_CHANNELS; ++i)
     {
         g_mixer_channels[i].active = 0;
@@ -170,6 +171,16 @@ void I_PrecacheSounds(sfxinfo_t *sounds, int num_sounds)
 
 void I_InitMusic(void)
 {
+    g_music_playing = 0;
+    g_music_looping = 0;
+    g_music_ticks = 0.0;
+    g_music_ticks_per_sec = 0.0;
+    g_time_division = 0;
+    g_tempo = 500000;
+    g_next_event_tick = 0;
+    g_music_generation = 0;
+    g_active_midi_file = NULL;
+    g_active_midi_iter = NULL;
 }
 
 void I_ShutdownMusic(void)

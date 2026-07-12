@@ -25,22 +25,66 @@ extern "C" {
 	void G_SaveGame(int slot, char* description);
 }
 
-// Fallback framebuffer for when no module owns the engine
-static uint8_t gFallbackFramebuffer[320 * 200 * 4];
+// The engine must never write directly into a module-owned buffer: a module
+// can be deleted while the engine thread is still between frames.  Keep the
+// producer buffer alive for the lifetime of the plugin instead.
+static uint8_t gDoomFramebuffer[320 * 200 * 4];
 
 // Single-instance engine owner
 static VcvDoomModule* gDoomModuleOwner = nullptr;
 static std::thread gDoomThread;
 
-// Static global guard to handle the thread when the plugin dynamic library is unloaded/exited.
-// We detach the thread rather than joining it to prevent blocking VCV Rack's shutdown sequence
-// in case system audio/MIDI devices are shut down before this destructor is called.
+// Doom's engine state is global, but Rack calls process() concurrently with
+// context-menu actions.  Before replacing a WAD, stop DSP from reading that
+// state and wait for the in-flight sample (if any) to finish.
+static std::atomic<bool> gDoomEngineTransitioning{false};
+static std::atomic<unsigned int> gDoomDspReaders{0};
+
+struct DoomDspAccess {
+	bool acquired = false;
+
+	DoomDspAccess() {
+		if (gDoomEngineTransitioning.load(std::memory_order_acquire)) {
+			return;
+		}
+		gDoomDspReaders.fetch_add(1, std::memory_order_acquire);
+		if (!gDoomEngineTransitioning.load(std::memory_order_acquire)) {
+			acquired = true;
+			return;
+		}
+		gDoomDspReaders.fetch_sub(1, std::memory_order_release);
+	}
+
+	~DoomDspAccess() {
+		if (acquired) {
+			gDoomDspReaders.fetch_sub(1, std::memory_order_release);
+		}
+	}
+};
+
+struct DoomEngineTransition {
+	DoomEngineTransition() {
+		gDoomEngineTransitioning.store(true, std::memory_order_release);
+		while (gDoomDspReaders.load(std::memory_order_acquire) != 0) {
+			std::this_thread::yield();
+		}
+	}
+
+	~DoomEngineTransition() {
+		gDoomEngineTransitioning.store(false, std::memory_order_release);
+	}
+};
+
+// A detached thread would continue executing code from this plugin after Rack
+// unloads the DLL/SO.  Requesting exit and joining is required for safe unload.
 struct DoomThreadGuard {
 	~DoomThreadGuard() {
+		DoomEngineTransition engineTransition;
 		doom_exit_requested = 1;
 		if (gDoomThread.joinable()) {
-			gDoomThread.detach();
+			gDoomThread.join();
 		}
+		W_Shutdown();
 	}
 };
 static DoomThreadGuard gThreadGuard;
@@ -62,33 +106,19 @@ VcvDoomModule::VcvDoomModule() {
 	configOutput(MIDI_PITCH_OUTPUT, "MIDI Pitch");
 	configOutput(MIDI_GATE_OUTPUT, "MIDI Gate");
 
-	// Initialize dummy framebuffer to static noise / test grid
-	for (int y = 0; y < 200; ++y) {
-		for (int x = 0; x < 320; ++x) {
-			int idx = (y * 320 + x) * 4;
-			dummyFramebuffer[idx + 0] = 0;   // R
-			dummyFramebuffer[idx + 1] = 0;   // G
-			dummyFramebuffer[idx + 2] = 0;   // B
-			dummyFramebuffer[idx + 3] = 255; // A
-		}
-	}
-
 	if (gDoomModuleOwner == nullptr) {
 		gDoomModuleOwner = this;
-		if (gDoomThread.joinable() && doom_engine_status == 2) {
-			// Redirect running thread's output to our new instance's framebuffer
-			I_SetTargetRGBA(dummyFramebuffer);
-		}
 	}
 
+	// Preserve the convenience of restoring the most recently selected WAD.
+	// The engine now targets plugin-lifetime storage, so this cannot leave a
+	// worker thread writing into a module that is still being constructed.
 	loadGlobalSettings();
 }
 
 VcvDoomModule::~VcvDoomModule() {
 	if (gDoomModuleOwner == this) {
 		gDoomModuleOwner = nullptr;
-		// Safely divert the running thread's framebuffer output to our fallback buffer
-		I_SetTargetRGBA(gFallbackFramebuffer);
 	}
 }
 
@@ -99,8 +129,10 @@ bool VcvDoomModule::isEngineOwner() const {
 void VcvDoomModule::process(const ProcessArgs& args) {
 	float outL = 0.f;
 	float outR = 0.f;
+	DoomDspAccess engineAccess;
 
-	if (gDoomModuleOwner == this && hasWad && !isBypassed()) {
+	if (engineAccess.acquired && gDoomModuleOwner == this && hasWad
+			&& doom_engine_status == 2 && !isBypassed()) {
 		// 1. Process CV Inputs
 		g_cv_xmove = inputs[X_MOVE_INPUT].getNormalVoltage(0.f);
 		g_cv_ymove = inputs[Y_MOVE_INPUT].getNormalVoltage(0.f);
@@ -328,7 +360,6 @@ bool VcvDoomModule::loadWad(const std::string& path, int startSlot) {
 	}
 
 	if (hasWad && wadPath == path && startSlot < 0 && gDoomThread.joinable() && doom_engine_status == 2) {
-		I_SetTargetRGBA(dummyFramebuffer);
 		return true;
 	}
 
@@ -350,6 +381,7 @@ bool VcvDoomModule::loadWad(const std::string& path, int startSlot) {
 		return false;
 	}
 
+	DoomEngineTransition engineTransition;
 	wadPath = path;
 	hasWad = true;
 
@@ -361,7 +393,7 @@ bool VcvDoomModule::loadWad(const std::string& path, int startSlot) {
 	W_Shutdown();
 
 	// Ensure the save directory exists
-	std::string saveDir = system::join(asset::user(), "Leviathan/vcvdoom_saves");
+	std::string saveDir = system::join(asset::user(), "Ifrit/vcvdoom_saves");
 	system::createDirectories(saveDir);
 
 	// Start a new thread
@@ -369,14 +401,15 @@ bool VcvDoomModule::loadWad(const std::string& path, int startSlot) {
 	doom_dirty_frame = 0;
 	doom_engine_error[0] = '\0';
 	doom_engine_status = 1;
-	gDoomThread = std::thread([this, saveDir, startSlot]() {
-		I_SetTargetRGBA(dummyFramebuffer);
+	I_SetTargetRGBA(gDoomFramebuffer);
+	const std::string engineWadPath = wadPath;
+	gDoomThread = std::thread([engineWadPath, saveDir, startSlot]() {
 
 		// Set up argc / argv using std::vector for clean formatting
 		std::vector<std::string> args;
 		args.push_back("vcvdoom");
 		args.push_back("-iwad");
-		args.push_back(wadPath);
+		args.push_back(engineWadPath);
 		args.push_back("-savedir");
 		args.push_back(saveDir);
 		if (startSlot >= 0) {
@@ -409,7 +442,7 @@ void VcvDoomModule::saveGlobalSettings() {
 	json_t* rootJ = json_object();
 	json_object_set_new(rootJ, "wadPath", json_string(wadPath.c_str()));
 
-	const std::string dir = system::join(asset::user(), "Leviathan");
+	const std::string dir = system::join(asset::user(), "Ifrit");
 	system::createDirectories(dir);
 	const std::string path = system::join(dir, "vcvdoom.json");
 	FILE* file = std::fopen(path.c_str(), "w");
@@ -421,7 +454,7 @@ void VcvDoomModule::saveGlobalSettings() {
 }
 
 void VcvDoomModule::loadGlobalSettings() {
-	const std::string dir = system::join(asset::user(), "Leviathan");
+	const std::string dir = system::join(asset::user(), "Ifrit");
 	const std::string path = system::join(dir, "vcvdoom.json");
 	FILE* file = std::fopen(path.c_str(), "r");
 	if (!file) {
@@ -489,7 +522,7 @@ void VcvDoomModule::dataFromJson(json_t* rootJ) {
 		if (!savedGameHex.empty()) {
 			std::vector<uint8_t> buffer = decodeHex(savedGameHex);
 			if (!buffer.empty()) {
-				std::string saveDir = system::join(asset::user(), "Leviathan/vcvdoom_saves");
+				std::string saveDir = system::join(asset::user(), "Ifrit/vcvdoom_saves");
 				system::createDirectories(saveDir);
 				std::string savePath = system::join(saveDir, "doomsav8.dsg");
 				
@@ -509,7 +542,7 @@ void VcvDoomModule::dataFromJson(json_t* rootJ) {
 
 void VcvDoomModule::triggerExplicitSave() {
 	if (gDoomModuleOwner == this && hasWad && doom_engine_status == 2) {
-		std::string saveDir = system::join(asset::user(), "Leviathan/vcvdoom_saves");
+		std::string saveDir = system::join(asset::user(), "Ifrit/vcvdoom_saves");
 		std::string savePath = system::join(saveDir, "doomsav8.dsg");
 		
 		std::remove(savePath.c_str());
@@ -544,7 +577,7 @@ void VcvDoomModule::triggerExplicitLoad() {
 	if (!savedGameHex.empty()) {
 		std::vector<uint8_t> buffer = decodeHex(savedGameHex);
 		if (!buffer.empty()) {
-			std::string saveDir = system::join(asset::user(), "Leviathan/vcvdoom_saves");
+			std::string saveDir = system::join(asset::user(), "Ifrit/vcvdoom_saves");
 			system::createDirectories(saveDir);
 			std::string savePath = system::join(saveDir, "doomsav8.dsg");
 			

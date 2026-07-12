@@ -33,8 +33,6 @@ struct VcvDoomModule : Module {
 	bool hasWad = false;
 	std::string savedGameHex = "";
 
-	// Dummy framebuffer for Phase 1 skeleton
-	uint8_t dummyFramebuffer[320 * 200 * 4];
 	std::atomic<bool> dirtyFrame{false};
 	int fragTrigTime = 0;
 

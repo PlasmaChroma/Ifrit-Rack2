@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
 #include "doomtype.h"
 #include "i_video.h"
 
@@ -46,6 +47,7 @@ void I_ShutdownGraphics(void)
 
 static byte active_palette[768];
 static uint8_t *doom_rgba_buffer = NULL;
+static pthread_mutex_t doom_rgba_mutex = PTHREAD_MUTEX_INITIALIZER;
 volatile int doom_dirty_frame = 0;
 int doom_exit_requested = 0;
 int usemouse = 1;
@@ -74,6 +76,7 @@ void I_FinishUpdate(void)
 {
     if (doom_rgba_buffer && I_VideoBuffer)
     {
+		pthread_mutex_lock(&doom_rgba_mutex);
         for (int i = 0; i < 320 * 200; ++i)
         {
             byte pixel = I_VideoBuffer[i];
@@ -82,13 +85,31 @@ void I_FinishUpdate(void)
             doom_rgba_buffer[i * 4 + 2] = active_palette[pixel * 3 + 2]; // B
             doom_rgba_buffer[i * 4 + 3] = 255;                          // A
         }
+		pthread_mutex_unlock(&doom_rgba_mutex);
         doom_dirty_frame = 1;
     }
 }
 
 void I_SetTargetRGBA(uint8_t *buffer)
 {
+	pthread_mutex_lock(&doom_rgba_mutex);
     doom_rgba_buffer = buffer;
+	pthread_mutex_unlock(&doom_rgba_mutex);
+}
+
+void I_CopyTargetRGBA(uint8_t *buffer)
+{
+    if (buffer == NULL)
+    {
+        return;
+    }
+
+    pthread_mutex_lock(&doom_rgba_mutex);
+    if (doom_rgba_buffer != NULL)
+    {
+        memcpy(buffer, doom_rgba_buffer, 320 * 200 * 4);
+    }
+    pthread_mutex_unlock(&doom_rgba_mutex);
 }
 
 void I_ReadScreen(pixel_t* scr)

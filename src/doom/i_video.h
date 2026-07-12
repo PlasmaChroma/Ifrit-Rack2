@@ -101,5 +101,6 @@ void I_GetWindowPosition(int *x, int *y, int w, int h);
 extern unsigned int joywait;
 
 void I_SetTargetRGBA(uint8_t *buffer);
+void I_CopyTargetRGBA(uint8_t *buffer);
 
 #endif

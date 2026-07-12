@@ -9,6 +9,7 @@ extern "C" {
 #include "doom/doomstat.h"
 	extern volatile int doom_engine_status;
 	extern char doom_engine_error[256];
+	void I_CopyTargetRGBA(uint8_t *buffer);
 }
 
 static int mapGlfwToDoomKey(int glfwKey) {
@@ -69,6 +70,7 @@ struct VcvDoomViewportWidget final : Widget {
 	VcvDoomModule* module = nullptr;
 	int doomImage = -1;
 	int doomImageW = 0, doomImageH = 0;
+	uint8_t framebufferCopy[320 * 200 * 4] = {};
 	NVGcontext* ownerVg = nullptr;
 	int mouseButtons = 0;
 	double mouseAccumX = 0.0;
@@ -383,7 +385,7 @@ struct VcvDoomViewportWidget final : Widget {
 			return;
 		}
 
-		// Render the active game framebuffer (in Phase 1: the animated dummy pattern)
+		// Render from a private snapshot. The Doom thread owns the source buffer.
 		using namespace nvg_gfx_lifecycle;
 
 		// Detect OpenGL context change - invalidate handle
@@ -394,13 +396,15 @@ struct VcvDoomViewportWidget final : Widget {
 		// (Re)create the texture if needed
 		if (doomImage < 0 || !ownedNvgImageSizeMatches(args.vg, doomImage, 320, 200)) {
 			resetOwnedNvgImage(ownerVg, doomImage, doomImageW, doomImageH, args.vg, true);
-			doomImage = nvgCreateImageRGBA(args.vg, 320, 200, NVG_IMAGE_NEAREST, module->dummyFramebuffer);
+			I_CopyTargetRGBA(framebufferCopy);
+			doomImage = nvgCreateImageRGBA(args.vg, 320, 200, NVG_IMAGE_NEAREST, framebufferCopy);
 			ownerVg = args.vg;
 		}
 
 		// Update texture data only if the engine has ticked a new frame
 		if (module->dirtyFrame.exchange(false) && doomImage >= 0) {
-			nvgUpdateImage(args.vg, doomImage, module->dummyFramebuffer);
+			I_CopyTargetRGBA(framebufferCopy);
+			nvgUpdateImage(args.vg, doomImage, framebufferCopy);
 		}
 
 		// Blit the viewport

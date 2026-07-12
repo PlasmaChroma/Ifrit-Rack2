@@ -1223,6 +1223,10 @@ void D_DoomMain (void)
     char demolumpname[9];
     int numiwadlumps;
 
+    I_ClearAtExit();
+    gamevariant = vanilla;
+    testcontrols = false;
+
     I_AtExit(D_Endoom, false);
 
     // print banner

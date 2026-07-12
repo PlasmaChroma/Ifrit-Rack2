@@ -627,6 +627,7 @@ void W_Shutdown(void)
             if (lumpinfo[i] && lumpinfo[i]->wad_file)
             {
                 wad_file_t *f = lumpinfo[i]->wad_file;
+                lumpinfo_t *filelumps_ptr = lumpinfo[i];
                 for (unsigned int j = i; j < numlumps; ++j)
                 {
                     if (lumpinfo[j] && lumpinfo[j]->wad_file == f)
@@ -635,12 +636,22 @@ void W_Shutdown(void)
                     }
                 }
                 W_CloseFile(f);
+                free(filelumps_ptr);
             }
         }
         free(lumpinfo);
         lumpinfo = NULL;
         numlumps = 0;
     }
+    lumphash = NULL;
+    if (reloadname)
+    {
+        free(reloadname);
+        reloadname = NULL;
+    }
+    reloadhandle = NULL;
+    reloadlumps = NULL;
+    reloadlump = -1;
 }
 
 

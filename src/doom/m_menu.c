@@ -2046,6 +2046,23 @@ void M_Ticker (void)
 //
 void M_Init (void)
 {
+    // Reset menu definitions to default state to avoid layout/item count drift on reload
+    MainDef.numitems = main_end;
+    MainDef.y = 64;
+    MainMenu[readthis].routine = M_ReadThis;
+    
+    EpiDef.numitems = ep_end;
+    
+    NewDef.prevMenu = &EpiDef;
+    
+    ReadDef1.routine = M_DrawReadThis1;
+    ReadDef1.x = 280;
+    ReadDef1.y = 185;
+    ReadMenu1[rdthsempty1].routine = M_ReadThis2;
+    
+    ReadDef2.prevMenu = &ReadDef1;
+    ReadDef2.routine = M_DrawReadThis2;
+
     currentMenu = &MainDef;
     menuactive = 0;
     itemOn = currentMenu->lastOn;

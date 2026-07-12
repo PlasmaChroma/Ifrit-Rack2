@@ -58,6 +58,22 @@ void I_AtExit(atexit_func_t func, boolean run_on_error)
     exit_funcs = entry;
 }
 
+void I_ClearAtExit(void)
+{
+    atexit_listentry_t *entry;
+    atexit_listentry_t *next;
+
+    entry = exit_funcs;
+    exit_funcs = NULL;
+
+    while (entry != NULL)
+    {
+        next = entry->next;
+        free(entry);
+        entry = next;
+    }
+}
+
 void I_Tactile(int on, int off, int total)
 {
 }
