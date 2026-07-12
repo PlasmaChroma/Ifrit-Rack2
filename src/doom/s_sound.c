@@ -149,6 +149,13 @@ void S_Init(int sfxVolume, int musicVolume)
 
     // no sounds are playing, and they are not mus_paused
     mus_paused = 0;
+    mus_playing = NULL;
+    for (i = 0; i < NUMMUSIC; i++)
+    {
+        S_music[i].lumpnum = 0;
+        S_music[i].data = NULL;
+        S_music[i].handle = NULL;
+    }
 
     // Note that sounds have not been cached (yet).
     for (i=1 ; i<NUMSFX ; i++)

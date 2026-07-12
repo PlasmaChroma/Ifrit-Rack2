@@ -539,7 +539,11 @@ static GameMission_t IdentifyIWADByName(char *name, int mask)
     GameMission_t mission;
     char *p;
 
-    p = strrchr(name, DIR_SEPARATOR);
+    p = strrchr(name, '/');
+    if (p == NULL)
+    {
+        p = strrchr(name, '\\');
+    }
 
     if (p != NULL)
     {

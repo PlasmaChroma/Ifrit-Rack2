@@ -1223,9 +1223,36 @@ void D_DoomMain (void)
     char demolumpname[9];
     int numiwadlumps;
 
+    // Redirect stdout and stderr to a log file inside the savedir
+    {
+        char *savedir_path = NULL;
+        for (int i = 1; i < myargc - 1; ++i)
+        {
+            if (myargv[i] && strcmp(myargv[i], "-savedir") == 0)
+            {
+                savedir_path = myargv[i+1];
+                break;
+            }
+        }
+        if (savedir_path != NULL)
+        {
+            char logpath[512];
+            snprintf(logpath, sizeof(logpath), "%s/vcvdoom_log.txt", savedir_path);
+            freopen(logpath, "w", stdout);
+            freopen(logpath, "w", stderr);
+        }
+    }
+
     I_ClearAtExit();
     gamevariant = vanilla;
     testcontrols = false;
+    gamemode = indetermined;
+    gamemission = doom;
+    gameversion = exe_final2;
+    modifiedgame = false;
+    storedemo = false;
+    gamestate = GS_LEVEL;
+    wipegamestate = GS_DEMOSCREEN;
 
     I_AtExit(D_Endoom, false);
 

@@ -622,12 +622,18 @@ void W_Shutdown(void)
 {
     if (lumpinfo)
     {
+        lumpinfo_t *to_free[128];
+        int to_free_count = 0;
+
         for (unsigned int i = 0; i < numlumps; ++i)
         {
             if (lumpinfo[i] && lumpinfo[i]->wad_file)
             {
                 wad_file_t *f = lumpinfo[i]->wad_file;
-                lumpinfo_t *filelumps_ptr = lumpinfo[i];
+                if (to_free_count < 128)
+                {
+                    to_free[to_free_count++] = lumpinfo[i];
+                }
                 for (unsigned int j = i; j < numlumps; ++j)
                 {
                     if (lumpinfo[j] && lumpinfo[j]->wad_file == f)
@@ -636,12 +642,16 @@ void W_Shutdown(void)
                     }
                 }
                 W_CloseFile(f);
-                free(filelumps_ptr);
             }
         }
         free(lumpinfo);
         lumpinfo = NULL;
         numlumps = 0;
+
+        for (int i = 0; i < to_free_count; ++i)
+        {
+            free(to_free[i]);
+        }
     }
     lumphash = NULL;
     if (reloadname)

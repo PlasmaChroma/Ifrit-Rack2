@@ -338,6 +338,8 @@ void D_StartNetGame(net_gamesettings_t *settings,
 
     offsetms = 0;
     recvtic = 0;
+    gametic = 0;
+    maketic = 0;
 
     settings->consoleplayer = 0;
     settings->num_players = 1;
