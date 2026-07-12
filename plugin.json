@@ -1,0 +1,27 @@
+{
+  "slug": "Ifrit",
+  "name": "Ifrit",
+  "version": "2.0.0",
+  "license": "proprietary",
+  "brand": "Ifrit",
+  "author": "Levi Kendall",
+  "authorEmail": "levi.kendall@gmail.com",
+  "authorUrl": "",
+  "pluginUrl": "",
+  "manualUrl": "",
+  "sourceUrl": "",
+  "donateUrl": "",
+  "changelogUrl": "",
+  "modules": [
+    {
+      "slug": "VcvDoom",
+      "name": "VCV Doom",
+      "description": "Embedded Doom engine with CV input/output",
+      "tags": [
+        "Visual",
+        "External"
+      ],
+      "hidden": false
+    }
+  ]
+}
