@@ -6,11 +6,13 @@
 extern "C" {
 	void D_DoomMain(void);
 	void I_SetTargetRGBA(uint8_t *buffer);
-	extern int doom_exit_requested;
 	extern volatile int doom_engine_status;
 	extern char doom_engine_error[256];
 	extern volatile int doom_dirty_frame;
 	void W_Shutdown(void);
+	void I_RequestDoomExit(void);
+	void I_ClearDoomExitRequest(void);
+	void I_RunAtExit(void);
 	extern int myargc;
 	extern char** myargv;
 #include "doom/i_sound.h"
@@ -76,16 +78,20 @@ struct DoomEngineTransition {
 	}
 };
 
+static void stopDoomEngine() {
+	DoomEngineTransition engineTransition;
+	I_RequestDoomExit();
+	if (gDoomThread.joinable()) {
+		gDoomThread.join();
+	}
+	W_Shutdown();
+}
+
 // A detached thread would continue executing code from this plugin after Rack
 // unloads the DLL/SO.  Requesting exit and joining is required for safe unload.
 struct DoomThreadGuard {
 	~DoomThreadGuard() {
-		DoomEngineTransition engineTransition;
-		doom_exit_requested = 1;
-		if (gDoomThread.joinable()) {
-			gDoomThread.join();
-		}
-		W_Shutdown();
+		stopDoomEngine();
 	}
 };
 static DoomThreadGuard gThreadGuard;
@@ -119,6 +125,7 @@ VcvDoomModule::VcvDoomModule() {
 
 VcvDoomModule::~VcvDoomModule() {
 	if (gDoomModuleOwner == this) {
+		stopDoomEngine();
 		gDoomModuleOwner = nullptr;
 	}
 }
@@ -388,24 +395,23 @@ bool VcvDoomModule::loadWad(const std::string& path, int startSlot) {
 	hasWad = true;
 
 	// Shut down existing thread if any
-	doom_exit_requested = 1;
-	if (gDoomThread.joinable()) {
-		gDoomThread.join();
-	}
-	W_Shutdown();
+	stopDoomEngine();
 
 	// Ensure the save directory exists
 	std::string saveDir = system::join(asset::user(), "Ifrit/vcvdoom_saves");
 	system::createDirectories(saveDir);
+	std::string logDir = system::join(asset::user(), "Ifrit/Log");
+	system::createDirectories(logDir);
+	std::string logPath = system::join(logDir, "vcvdoom.log");
 
 	// Start a new thread
-	doom_exit_requested = 0;
+	I_ClearDoomExitRequest();
 	doom_dirty_frame = 0;
 	doom_engine_error[0] = '\0';
 	doom_engine_status = 1;
 	I_SetTargetRGBA(gDoomFramebuffer);
 	const std::string engineWadPath = wadPath;
-	gDoomThread = std::thread([engineWadPath, saveDir, startSlot]() {
+	gDoomThread = std::thread([engineWadPath, saveDir, logPath, startSlot]() {
 
 		// Set up argc / argv using std::vector for clean formatting
 		std::vector<std::string> args;
@@ -414,6 +420,8 @@ bool VcvDoomModule::loadWad(const std::string& path, int startSlot) {
 		args.push_back(engineWadPath);
 		args.push_back("-savedir");
 		args.push_back(saveDir);
+		args.push_back("-logfile");
+		args.push_back(logPath);
 		if (startSlot >= 0) {
 			args.push_back("-loadgame");
 			args.push_back(std::to_string(startSlot));
@@ -429,6 +437,7 @@ bool VcvDoomModule::loadWad(const std::string& path, int startSlot) {
 		myargv = argv;
 
 		D_DoomMain();
+		I_RunAtExit();
 
 		for (int i = 0; i < argc; ++i) {
 			free(argv[i]);

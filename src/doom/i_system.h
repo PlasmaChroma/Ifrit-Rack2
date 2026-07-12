@@ -66,6 +66,12 @@ boolean I_GetMemoryValue(unsigned int offset, void *value, int size);
 
 void I_AtExit(atexit_func_t func, boolean run_if_error);
 void I_ClearAtExit(void);
+// Run Doom's registered cleanup callbacks without terminating the Rack host.
+void I_RunAtExit(void);
+
+// The host owns stdout/stderr. Doom diagnostics use this separate file instead.
+void I_SetLogFile(const char *path);
+void I_Log(const char *message);
 
 // Add all system-specific config file variable bindings.
 
@@ -84,4 +90,3 @@ void I_PrintBanner(char *text);
 void I_PrintDivider(void);
 
 #endif
-

@@ -737,11 +737,10 @@ void TryRunTics (void)
     if (counts < 1)
 	counts = 1;
 
-    extern int doom_exit_requested;
     // wait for new tics if needed
     while (!PlayersInGame() || lowtic < gametic/ticdup + counts)
     {
-        if (doom_exit_requested)
+        if (I_DoomExitRequested())
             return;
 	NetUpdate ();
 
@@ -886,4 +885,3 @@ boolean D_NonVanillaPlayback(boolean conditional, int lumpnum,
 
     return true;
 }
-

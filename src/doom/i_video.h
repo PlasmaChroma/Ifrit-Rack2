@@ -64,6 +64,11 @@ void I_BindVideoVariables(void);
 void I_InitWindowTitle(void);
 void I_InitWindowIcon(void);
 
+// Thread-safe shutdown signal for the embedded Doom engine.
+void I_RequestDoomExit(void);
+void I_ClearDoomExitRequest(void);
+int I_DoomExitRequested(void);
+
 // Called before processing any tics in a frame (just after displaying a frame).
 // Time consuming syncronous operations are performed here (joystick reading).
 

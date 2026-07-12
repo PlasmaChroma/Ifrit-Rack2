@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
+#include <stdatomic.h>
 #include "doomtype.h"
 #include "i_video.h"
 
@@ -49,7 +50,7 @@ static byte active_palette[768];
 static uint8_t *doom_rgba_buffer = NULL;
 static pthread_mutex_t doom_rgba_mutex = PTHREAD_MUTEX_INITIALIZER;
 volatile int doom_dirty_frame = 0;
-int doom_exit_requested = 0;
+static _Atomic int doom_exit_requested = 0;
 int usemouse = 1;
 volatile int g_game_health = 100;
 volatile int g_game_frag_trigger = 0;
@@ -61,6 +62,21 @@ volatile int g_cv_xmove_mode = 1;
 volatile int g_cv_warp_epsd = 0;
 volatile int g_cv_warp_map = 0;
 volatile int g_cv_cheat_request = 0;
+
+void I_RequestDoomExit(void)
+{
+    atomic_store_explicit(&doom_exit_requested, 1, memory_order_release);
+}
+
+void I_ClearDoomExitRequest(void)
+{
+    atomic_store_explicit(&doom_exit_requested, 0, memory_order_release);
+}
+
+int I_DoomExitRequested(void)
+{
+    return atomic_load_explicit(&doom_exit_requested, memory_order_acquire);
+}
 
 void I_SetPalette(byte* palette)
 {

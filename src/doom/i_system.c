@@ -45,6 +45,36 @@ struct atexit_listentry_s
 };
 
 static atexit_listentry_t *exit_funcs = NULL;
+static FILE *doom_log = NULL;
+
+static void I_CloseLogFile(void)
+{
+    if (doom_log != NULL)
+    {
+        fclose(doom_log);
+        doom_log = NULL;
+    }
+}
+
+void I_SetLogFile(const char *path)
+{
+    I_CloseLogFile();
+
+    if (path != NULL)
+    {
+        doom_log = fopen(path, "w");
+    }
+}
+
+void I_Log(const char *message)
+{
+    if (doom_log != NULL)
+    {
+        fputs(message, doom_log);
+        fputc('\n', doom_log);
+        fflush(doom_log);
+    }
+}
 
 void I_AtExit(atexit_func_t func, boolean run_on_error)
 {
@@ -72,6 +102,23 @@ void I_ClearAtExit(void)
         free(entry);
         entry = next;
     }
+}
+
+void I_RunAtExit(void)
+{
+    atexit_listentry_t *entry = exit_funcs;
+    exit_funcs = NULL;
+
+    while (entry != NULL)
+    {
+        atexit_listentry_t *next = entry->next;
+        entry->func();
+        free(entry);
+        entry = next;
+    }
+
+    I_Log("Doom engine shutdown complete");
+    I_CloseLogFile();
 }
 
 void I_Tactile(int on, int off, int total)
@@ -209,6 +256,7 @@ void I_Quit (void)
     }
 
     already_quitting = false;
+    I_CloseLogFile();
     pthread_exit(NULL);
 }
 
@@ -240,6 +288,7 @@ void I_Error (char *error, ...)
     fprintf(stderr, "\n\n");
     va_end(argptr);
     fflush(stderr);
+    I_Log(doom_engine_error);
 
     entry = exit_funcs;
     exit_funcs = NULL;
@@ -257,6 +306,7 @@ void I_Error (char *error, ...)
     }
 
     already_quitting = false;
+    I_CloseLogFile();
     pthread_exit(NULL);
 }
 

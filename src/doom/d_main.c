@@ -461,10 +461,9 @@ void D_DoomLoop (void)
         wipegamestate = gamestate;
     }
 
-    extern int doom_exit_requested;
     extern volatile int doom_engine_status;
     doom_engine_status = 2;
-    while (!doom_exit_requested)
+    while (!I_DoomExitRequested())
     {
 	// frame syncronous IO operations
 	I_StartFrame ();
@@ -1223,23 +1222,22 @@ void D_DoomMain (void)
     char demolumpname[9];
     int numiwadlumps;
 
-    // Redirect stdout and stderr to a log file inside the savedir
+    // Rack owns stdout and stderr.  Keep Doom diagnostics in a dedicated
+    // file instead of mutating the host process' streams.
     {
-        char *savedir_path = NULL;
+        char *log_path = NULL;
         for (int i = 1; i < myargc - 1; ++i)
         {
-            if (myargv[i] && strcmp(myargv[i], "-savedir") == 0)
+            if (myargv[i] && strcmp(myargv[i], "-logfile") == 0)
             {
-                savedir_path = myargv[i+1];
+                log_path = myargv[i+1];
                 break;
             }
         }
-        if (savedir_path != NULL)
+        if (log_path != NULL)
         {
-            char logpath[512];
-            snprintf(logpath, sizeof(logpath), "%s/vcvdoom_log.txt", savedir_path);
-            freopen(logpath, "w", stdout);
-            freopen(logpath, "w", stderr);
+            I_SetLogFile(log_path);
+            I_Log("Doom engine starting");
         }
     }
 
