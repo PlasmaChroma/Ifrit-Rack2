@@ -72,6 +72,7 @@
 #include "p_setup.h"
 #include "r_local.h"
 #include "statdump.h"
+#include "s_sound.h"
 
 
 #include "d_main.h"
@@ -1437,6 +1438,12 @@ void D_DoomMain (void)
     M_SetConfigFilenames("default.cfg", PROGRAM_PREFIX "doom.cfg");
     D_BindVariables();
     M_LoadDefaults();
+
+    // Rack owns output gain staging. The embedded menu no longer exposes
+    // Doom's volume controls, so do not inherit arbitrary values from an
+    // existing Chocolate Doom configuration file.
+    sfxVolume = 8;
+    musicVolume = 8;
 
     // Save configuration at exit.
     I_AtExit(M_SaveDefaults, false);
