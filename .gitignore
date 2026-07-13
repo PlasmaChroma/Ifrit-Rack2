@@ -1,0 +1,18 @@
+# VCV Rack build outputs
+build/
+dist/
+plugin.so
+*.vcvplugin
+*.so
+*.dylib
+*.dll
+
+# OS/Editor configs
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Local scratch files
+/scratch/
