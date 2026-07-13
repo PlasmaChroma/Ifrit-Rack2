@@ -318,6 +318,6 @@ struct VstFxWidget : ModuleWidget {
     }
 };
 
-Model* modelVstFx = createModel<VstFxModule, VstFxWidget>("VST-FX");
-
 } // namespace ifrit
+
+Model* modelVstFx = createModel<ifrit::VstFxModule, ifrit::VstFxWidget>("VST-FX");

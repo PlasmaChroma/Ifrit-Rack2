@@ -404,6 +404,6 @@ struct VstInstrumentWidget : ModuleWidget {
     }
 };
 
-Model* modelVstInstrument = createModel<VstInstrumentModule, VstInstrumentWidget>("VST-Instrument");
-
 } // namespace ifrit
+
+Model* modelVstInstrument = createModel<ifrit::VstInstrumentModule, ifrit::VstInstrumentWidget>("VST-Instrument");
