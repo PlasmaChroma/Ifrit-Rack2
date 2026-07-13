@@ -1,0 +1,29 @@
+Performing C++ SOURCE FILE Test SMTG_USE_STDATOMIC_H failed with the following output:
+Change Dir: /home/Levi.Kendall/dev/Ifrit-Rack2/dep/vst3sdk/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_b3194/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_b3194.dir/build.make CMakeFiles/cmTC_b3194.dir/build
+gmake[1]: Entering directory '/home/Levi.Kendall/dev/Ifrit-Rack2/dep/vst3sdk/build/CMakeFiles/CMakeTmp'
+Building CXX object CMakeFiles/cmTC_b3194.dir/src.cxx.o
+/usr/bin/c++ -DSMTG_USE_STDATOMIC_H  -Wno-multichar  -fPIE -o CMakeFiles/cmTC_b3194.dir/src.cxx.o -c /home/Levi.Kendall/dev/Ifrit-Rack2/dep/vst3sdk/build/CMakeFiles/CMakeTmp/src.cxx
+/home/Levi.Kendall/dev/Ifrit-Rack2/dep/vst3sdk/build/CMakeFiles/CMakeTmp/src.cxx: In function ‘int main()’:
+/home/Levi.Kendall/dev/Ifrit-Rack2/dep/vst3sdk/build/CMakeFiles/CMakeTmp/src.cxx:3:9: error: ‘atomic_int_least32_t’ was not declared in this scope
+    3 |         atomic_int_least32_t value = 0;
+      |         ^~~~~~~~~~~~~~~~~~~~
+/home/Levi.Kendall/dev/Ifrit-Rack2/dep/vst3sdk/build/CMakeFiles/CMakeTmp/src.cxx:4:28: error: ‘value’ was not declared in this scope
+    4 |         atomic_fetch_add (&value, 1);
+      |                            ^~~~~
+/home/Levi.Kendall/dev/Ifrit-Rack2/dep/vst3sdk/build/CMakeFiles/CMakeTmp/src.cxx:4:9: error: ‘atomic_fetch_add’ was not declared in this scope
+    4 |         atomic_fetch_add (&value, 1);
+      |         ^~~~~~~~~~~~~~~~
+gmake[1]: *** [CMakeFiles/cmTC_b3194.dir/build.make:78: CMakeFiles/cmTC_b3194.dir/src.cxx.o] Error 1
+gmake[1]: Leaving directory '/home/Levi.Kendall/dev/Ifrit-Rack2/dep/vst3sdk/build/CMakeFiles/CMakeTmp'
+gmake: *** [Makefile:127: cmTC_b3194/fast] Error 2
+
+
+Source file was:
+#include <stdatomic.h>
+    int main () { 
+        atomic_int_least32_t value = 0;
+        atomic_fetch_add (&value, 1); 
+        return 0; 
+    }
