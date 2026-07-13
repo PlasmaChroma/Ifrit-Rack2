@@ -1,6 +1,10 @@
 #include "PluginScanner.hpp"
 #include <filesystem>
-#include <dlfcn.h>
+#if defined(_WIN32)
+    #include <windows.h>
+#else
+    #include <dlfcn.h>
+#endif
 #include <iostream>
 #include <sstream>
 #include <iomanip>
@@ -62,6 +66,19 @@ void PluginScanner::scanLoop(const std::vector<std::string>& customDirectories) 
     // 1. Gather all directories to scan
     std::vector<std::string> dirs;
     
+#if defined(_WIN32)
+    char* commonFiles = std::getenv("COMMONPROGRAMFILES");
+    if (commonFiles) {
+        dirs.push_back(std::string(commonFiles) + "\\VST3");
+    } else {
+        dirs.push_back("C:\\Program Files\\Common Files\\VST3");
+    }
+    
+    char* localAppData = std::getenv("LOCALAPPDATA");
+    if (localAppData) {
+        dirs.push_back(std::string(localAppData) + "\\Programs\\Common\\VST3");
+    }
+#else
     // Standard Linux paths
     dirs.push_back("/usr/lib/vst3");
     dirs.push_back("/usr/local/lib/vst3");
@@ -71,6 +88,7 @@ void PluginScanner::scanLoop(const std::vector<std::string>& customDirectories) 
         std::string homeVst3 = std::string(home) + "/.vst3";
         dirs.push_back(homeVst3);
     }
+#endif
 
     // Add user custom paths
     for (const auto& d : customDirectories) {
@@ -104,13 +122,22 @@ void PluginScanner::scanDirectory(const std::string& path) {
             if (p.extension() == ".vst3") {
                 if (fs::is_directory(p)) {
                     // Standard VST3 bundle directory
-                    // Search for .so under Contents/x86_64-linux/
-                    std::string soPath = p.string() + "/Contents/x86_64-linux";
-                    if (fs::exists(soPath) && fs::is_directory(soPath)) {
-                        for (const auto& subEntry : fs::directory_iterator(soPath)) {
+#if defined(_WIN32)
+                    std::string binPath = p.string() + "/Contents/x86_64-win";
+#else
+                    std::string binPath = p.string() + "/Contents/x86_64-linux";
+#endif
+                    if (fs::exists(binPath) && fs::is_directory(binPath)) {
+                        for (const auto& subEntry : fs::directory_iterator(binPath)) {
+#if defined(_WIN32)
+                            if (subEntry.path().extension() == ".vst3" || subEntry.path().extension() == ".dll") {
+                                scanPluginFile(subEntry.path().string());
+                            }
+#else
                             if (subEntry.path().extension() == ".so") {
                                 scanPluginFile(subEntry.path().string());
                             }
+#endif
                         }
                     }
                 } else if (fs::is_regular_file(p)) {
@@ -126,22 +153,38 @@ void PluginScanner::scanDirectory(const std::string& path) {
 
 void PluginScanner::scanPluginFile(const std::string& path) {
     // 1. Dynamic Load
+#if defined(_WIN32)
+    HMODULE handle = LoadLibraryA(path.c_str());
+#else
     void* handle = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
+#endif
     if (!handle) {
         return; // skip unloadable files silently
     }
 
     // 2. Get Factory
     using GetFactoryFunc = Steinberg::IPluginFactory* (*)();
+#if defined(_WIN32)
+    GetFactoryFunc getFactory = (GetFactoryFunc)GetProcAddress(handle, "GetPluginFactory");
+#else
     GetFactoryFunc getFactory = (GetFactoryFunc)dlsym(handle, "GetPluginFactory");
+#endif
     if (!getFactory) {
+#if defined(_WIN32)
+        FreeLibrary(handle);
+#else
         dlclose(handle);
+#endif
         return;
     }
 
     Steinberg::IPluginFactory* factory = getFactory();
     if (!factory) {
+#if defined(_WIN32)
+        FreeLibrary(handle);
+#else
         dlclose(handle);
+#endif
         return;
     }
     factory->addRef();
@@ -209,7 +252,11 @@ void PluginScanner::scanPluginFile(const std::string& path) {
 
     if (factory2) factory2->release();
     factory->release();
+#if defined(_WIN32)
+    FreeLibrary(handle);
+#else
     dlclose(handle);
+#endif
 }
 
 } // namespace ifrit

@@ -3,7 +3,11 @@
 #include <atomic>
 #include <thread>
 #include <mutex>
-#include <X11/Xlib.h>
+#if defined(_WIN32)
+    #include <windows.h>
+#else
+    #include <X11/Xlib.h>
+#endif
 #include "host/PluginHostBackend.hpp"
 #include "host/vst3/Vst3ComponentHandler.hpp"
 #include "host/vst3/Vst3ParameterChanges.hpp"
@@ -59,7 +63,11 @@ private:
     std::string pluginName;
     std::string pluginVendor;
 
+#if defined(_WIN32)
+    HMODULE moduleHandle;
+#else
     void* moduleHandle;
+#endif
     Steinberg::IPluginFactory* factory;
     Steinberg::Vst::IComponent* component;
     Steinberg::Vst::IAudioProcessor* processor;
@@ -77,9 +85,13 @@ private:
     // Mutex for parameter change thread safety
     mutable std::mutex paramMutex;
 
-    // Native X11 Editor window details
+    // Native Editor window details
+#if defined(_WIN32)
+    HWND xWindow;
+#else
     ::Display* xDisplay;
     ::Window xWindow;
+#endif
     std::atomic<bool> editorOpen;
 };
 

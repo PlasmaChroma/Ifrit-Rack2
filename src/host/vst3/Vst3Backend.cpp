@@ -59,15 +59,27 @@ PluginLoadResult Vst3Backend::load(const PluginDescriptor& descriptor) {
     classIdStr = descriptor.classId;
 
     // 1. Dynamic Load
+#if defined(_WIN32)
+    moduleHandle = LoadLibraryA(modulePath.c_str());
+    if (!moduleHandle) {
+        std::cerr << "[Vst3Backend] Failed to LoadLibrary: " << GetLastError() << std::endl;
+        return PluginLoadResult::FileNotFound;
+    }
+#else
     moduleHandle = dlopen(modulePath.c_str(), RTLD_NOW | RTLD_LOCAL);
     if (!moduleHandle) {
         std::cerr << "[Vst3Backend] Failed to dlopen: " << dlerror() << std::endl;
         return PluginLoadResult::FileNotFound;
     }
+#endif
 
     // 2. Get Factory Function
     using GetFactoryFunc = Steinberg::IPluginFactory* (*)();
+#if defined(_WIN32)
+    GetFactoryFunc getFactory = (GetFactoryFunc)GetProcAddress(moduleHandle, "GetPluginFactory");
+#else
     GetFactoryFunc getFactory = (GetFactoryFunc)dlsym(moduleHandle, "GetPluginFactory");
+#endif
     if (!getFactory) {
         std::cerr << "[Vst3Backend] GetPluginFactory symbol not found." << std::endl;
         unload();
@@ -180,7 +192,11 @@ void Vst3Backend::unload() {
     }
 
     if (moduleHandle) {
+#if defined(_WIN32)
+        FreeLibrary(moduleHandle);
+#else
         dlclose(moduleHandle);
+#endif
         moduleHandle = nullptr;
     }
 
@@ -446,6 +462,21 @@ EditorOpenResult Vst3Backend::openEditor(void* parentWindowHandle, int x, int y,
         return EditorOpenResult::NoEditor;
     }
 
+#if defined(_WIN32)
+    if (view->isPlatformTypeSupported(Steinberg::kPlatformTypeHWND) != Steinberg::kResultOk) {
+        view->release();
+        view = nullptr;
+        return EditorOpenResult::PlatformError;
+    }
+
+    HWND parent = (HWND)parentWindowHandle;
+    // Attach View
+    if (view->attached((void*)parent, Steinberg::kPlatformTypeHWND) != Steinberg::kResultOk) {
+        view->release();
+        view = nullptr;
+        return EditorOpenResult::PlatformError;
+    }
+#else
     if (view->isPlatformTypeSupported(Steinberg::kPlatformTypeX11EmbedWindowID) != Steinberg::kResultOk) {
         view->release();
         view = nullptr;
@@ -472,10 +503,6 @@ EditorOpenResult Vst3Backend::openEditor(void* parentWindowHandle, int x, int y,
         xWindow = parent;
     }
 
-    // Get size constraint
-    Steinberg::ViewRect sizeRect(0, 0, width, height);
-    view->getSize(&sizeRect);
-
     // Attach View
     if (view->attached((void*)parent, Steinberg::kPlatformTypeX11EmbedWindowID) != Steinberg::kResultOk) {
         if (xWindow) {
@@ -488,6 +515,7 @@ EditorOpenResult Vst3Backend::openEditor(void* parentWindowHandle, int x, int y,
         view = nullptr;
         return EditorOpenResult::PlatformError;
     }
+#endif
 
     editorOpen = true;
     return EditorOpenResult::Ok;
@@ -500,6 +528,7 @@ void Vst3Backend::closeEditor() {
     view->release();
     view = nullptr;
 
+#if !defined(_WIN32)
     if (xWindow) {
         XDestroyWindow(xDisplay, xWindow);
         xWindow = 0;
@@ -509,11 +538,13 @@ void Vst3Backend::closeEditor() {
         XCloseDisplay(xDisplay);
         xDisplay = nullptr;
     }
+#endif
 
     editorOpen = false;
 }
 
 void Vst3Backend::stepUI() {
+#if !defined(_WIN32)
     if (!editorOpen || !xDisplay) return;
 
     // Process pending X11 events for the plugin window
@@ -522,6 +553,7 @@ void Vst3Backend::stepUI() {
         XNextEvent(xDisplay, &event);
         // Handle exposures or configuration updates if necessary
     }
+#endif
 }
 
 void Vst3Backend::setParameterEditCallbacks(ParameterEditCallback onBegin, ParameterEditCallback onPerform, ParameterEditCallback onEnd) {
