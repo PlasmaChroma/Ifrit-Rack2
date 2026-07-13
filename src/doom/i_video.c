@@ -48,6 +48,7 @@ void I_ShutdownGraphics(void)
 
 static byte active_palette[768];
 static uint8_t *doom_rgba_buffer = NULL;
+static uint8_t doom_rgba_staging[320 * 200 * 4];
 static pthread_mutex_t doom_rgba_mutex = PTHREAD_MUTEX_INITIALIZER;
 static _Atomic int doom_dirty_frame = 0;
 static _Atomic int doom_exit_requested = 0;
@@ -63,6 +64,8 @@ static _Atomic int g_cv_warp_epsd = 0;
 static _Atomic int g_cv_warp_map = 0;
 static _Atomic int g_cv_cheat_request = 0;
 static _Atomic int g_cv_save_request = 0;
+static _Atomic int g_rack_game_mode = 0;
+static _Atomic int g_rack_game_mission = 0;
 
 void I_SetRackCvControls(float xmove, float ymove, int fire, int weapon, int xmove_mode)
 {
@@ -153,6 +156,20 @@ int I_TakeRackFrameDirty(void)
     return atomic_exchange_explicit(&doom_dirty_frame, 0, memory_order_acq_rel);
 }
 
+void I_SetRackGameCatalog(int mode, int mission)
+{
+    atomic_store_explicit(&g_rack_game_mission, mission, memory_order_relaxed);
+    atomic_store_explicit(&g_rack_game_mode, mode, memory_order_release);
+}
+
+void I_GetRackGameCatalog(int *mode, int *mission)
+{
+    if (mode)
+        *mode = atomic_load_explicit(&g_rack_game_mode, memory_order_acquire);
+    if (mission)
+        *mission = atomic_load_explicit(&g_rack_game_mission, memory_order_acquire);
+}
+
 void I_RequestDoomExit(void)
 {
     atomic_store_explicit(&doom_exit_requested, 1, memory_order_release);
@@ -184,17 +201,21 @@ void I_UpdateNoBlit(void)
 
 void I_FinishUpdate(void)
 {
-    if (doom_rgba_buffer && I_VideoBuffer)
+    if (I_VideoBuffer)
     {
-		pthread_mutex_lock(&doom_rgba_mutex);
         for (int i = 0; i < 320 * 200; ++i)
         {
             byte pixel = I_VideoBuffer[i];
-            doom_rgba_buffer[i * 4 + 0] = active_palette[pixel * 3 + 0]; // R
-            doom_rgba_buffer[i * 4 + 1] = active_palette[pixel * 3 + 1]; // G
-            doom_rgba_buffer[i * 4 + 2] = active_palette[pixel * 3 + 2]; // B
-            doom_rgba_buffer[i * 4 + 3] = 255;                          // A
+            doom_rgba_staging[i * 4 + 0] = active_palette[pixel * 3 + 0]; // R
+            doom_rgba_staging[i * 4 + 1] = active_palette[pixel * 3 + 1]; // G
+            doom_rgba_staging[i * 4 + 2] = active_palette[pixel * 3 + 2]; // B
+            doom_rgba_staging[i * 4 + 3] = 255;                          // A
         }
+		// Convert into the producer buffer without blocking the UI. Only the
+		// completed-frame copy needs to share the consumer snapshot mutex.
+		pthread_mutex_lock(&doom_rgba_mutex);
+		if (doom_rgba_buffer)
+			memcpy(doom_rgba_buffer, doom_rgba_staging, sizeof(doom_rgba_staging));
 		pthread_mutex_unlock(&doom_rgba_mutex);
         I_MarkRackFrameDirty();
     }

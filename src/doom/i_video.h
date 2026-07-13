@@ -122,5 +122,7 @@ void I_RequestRackSave(void);
 int I_TakeRackSaveRequest(void);
 void I_MarkRackFrameDirty(void);
 int I_TakeRackFrameDirty(void);
+void I_SetRackGameCatalog(int mode, int mission);
+void I_GetRackGameCatalog(int *mode, int *mission);
 
 #endif

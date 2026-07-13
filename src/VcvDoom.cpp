@@ -512,13 +512,50 @@ void VcvDoomModule::loadGlobalSettings() {
 	json_decref(rootJ);
 }
 
-static std::string encodeHex(const std::vector<uint8_t>& data) {
-	static const char hexChars[] = "0123456789abcdef";
+static std::string encodeBase64(const std::vector<uint8_t>& data) {
+	static const char chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 	std::string result;
-	result.reserve(data.size() * 2);
-	for (uint8_t byte : data) {
-		result.push_back(hexChars[(byte >> 4) & 0xF]);
-		result.push_back(hexChars[byte & 0xF]);
+	result.reserve(((data.size() + 2) / 3) * 4);
+	for (size_t i = 0; i < data.size(); i += 3) {
+		uint32_t value = (uint32_t)data[i] << 16;
+		const bool hasSecond = i + 1 < data.size();
+		const bool hasThird = i + 2 < data.size();
+		if (hasSecond) value |= (uint32_t)data[i + 1] << 8;
+		if (hasThird) value |= data[i + 2];
+		result.push_back(chars[(value >> 18) & 0x3f]);
+		result.push_back(chars[(value >> 12) & 0x3f]);
+		result.push_back(hasSecond ? chars[(value >> 6) & 0x3f] : '=');
+		result.push_back(hasThird ? chars[value & 0x3f] : '=');
+	}
+	return result;
+}
+
+static int decodeBase64Char(char c) {
+	if (c >= 'A' && c <= 'Z') return c - 'A';
+	if (c >= 'a' && c <= 'z') return c - 'a' + 26;
+	if (c >= '0' && c <= '9') return c - '0' + 52;
+	if (c == '+') return 62;
+	if (c == '/') return 63;
+	return -1;
+}
+
+static std::vector<uint8_t> decodeBase64(const std::string& encoded) {
+	std::vector<uint8_t> result;
+	if (encoded.empty() || encoded.size() % 4 != 0 || encoded.size() > 1400000) return result;
+	result.reserve((encoded.size() / 4) * 3);
+	for (size_t i = 0; i < encoded.size(); i += 4) {
+		const int a = decodeBase64Char(encoded[i]);
+		const int b = decodeBase64Char(encoded[i + 1]);
+		const bool pad2 = encoded[i + 2] == '=';
+		const bool pad3 = encoded[i + 3] == '=';
+		const int c = pad2 ? 0 : decodeBase64Char(encoded[i + 2]);
+		const int d = pad3 ? 0 : decodeBase64Char(encoded[i + 3]);
+		if (a < 0 || b < 0 || c < 0 || d < 0 || (pad2 && !pad3)
+			|| ((pad2 || pad3) && i + 4 != encoded.size())) return {};
+		const uint32_t value = ((uint32_t)a << 18) | ((uint32_t)b << 12) | ((uint32_t)c << 6) | (uint32_t)d;
+		result.push_back((value >> 16) & 0xff);
+		if (!pad2) result.push_back((value >> 8) & 0xff);
+		if (!pad3) result.push_back(value & 0xff);
 	}
 	return result;
 }
@@ -550,7 +587,7 @@ static std::vector<uint8_t> decodeHex(const std::string& hex) {
 
 json_t* VcvDoomModule::dataToJson() {
 	json_t* rootJ = json_object();
-	json_object_set_new(rootJ, "saveGameHex", json_string(savedGameHex.c_str()));
+	json_object_set_new(rootJ, "saveGameBase64", json_string(savedGameData.c_str()));
 	json_object_set_new(rootJ, "xMoveMode", json_integer(xMoveMode));
 	return rootJ;
 }
@@ -561,12 +598,14 @@ void VcvDoomModule::dataFromJson(json_t* rootJ) {
 		xMoveMode = json_integer_value(modeJ);
 	}
 
+	json_t* base64J = json_object_get(rootJ, "saveGameBase64");
 	json_t* hexJ = json_object_get(rootJ, "saveGameHex");
-	if (hexJ && json_is_string(hexJ)) {
-		savedGameHex = json_string_value(hexJ);
+	if ((base64J && json_is_string(base64J)) || (hexJ && json_is_string(hexJ))) {
+		const bool legacyHex = !base64J || !json_is_string(base64J);
+		savedGameData = json_string_value(legacyHex ? hexJ : base64J);
 		// Automatically reload the saved game state on patch loading
-		if (!savedGameHex.empty()) {
-			std::vector<uint8_t> buffer = decodeHex(savedGameHex);
+		if (!savedGameData.empty()) {
+			std::vector<uint8_t> buffer = legacyHex ? decodeHex(savedGameData) : decodeBase64(savedGameData);
 			if (!buffer.empty()) {
 				std::string saveDir = system::join(asset::user(), "Ifrit/vcvdoom_saves");
 				system::createDirectories(saveDir);
@@ -612,7 +651,7 @@ void VcvDoomModule::pollExplicitSave() {
 		if (size > 0) {
 			file.seekg(0, std::ios::beg);
 			std::vector<uint8_t> buffer((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-			savedGameHex = encodeHex(buffer);
+			savedGameData = encodeBase64(buffer);
 			savePending = false;
 			return;
 		}
@@ -624,8 +663,8 @@ void VcvDoomModule::pollExplicitSave() {
 }
 
 void VcvDoomModule::triggerExplicitLoad() {
-	if (!savedGameHex.empty()) {
-		std::vector<uint8_t> buffer = decodeHex(savedGameHex);
+	if (!savedGameData.empty()) {
+		std::vector<uint8_t> buffer = decodeBase64(savedGameData);
 		if (!buffer.empty()) {
 			std::string saveDir = system::join(asset::user(), "Ifrit/vcvdoom_saves");
 			system::createDirectories(saveDir);

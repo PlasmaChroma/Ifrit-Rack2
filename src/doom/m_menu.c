@@ -336,7 +336,6 @@ enum
     option_empty1,
     mousesens,
     option_empty2,
-    soundvol,
     opt_end
 } options_e;
 
@@ -348,8 +347,7 @@ menuitem_t OptionsMenu[]=
     {2,"M_SCRNSZ",	M_SizeDisplay,'s'},
     {-1,"",0,'\0'},
     {2,"M_MSENS",	M_ChangeSensitivity,'m'},
-    {-1,"",0,'\0'},
-    {1,"M_SVOL",	M_Sound,'s'}
+    {-1,"",0,'\0'}
 };
 
 menu_t  OptionsDef =
@@ -1674,14 +1672,6 @@ boolean M_Responder (event_t* ev)
 	    M_LoadGame(0);
 	    return true;
         }
-        else if (key == key_menu_volume)   // Sound Volume
-        {
-	    M_StartControlPanel ();
-	    currentMenu = &SoundDef;
-	    itemOn = sfx_vol;
-	    S_StartSound(NULL,sfx_swtchn);
-	    return true;
-	}
         else if (key == key_menu_detail)   // Detail toggle
         {
 	    M_ChangeDetail(0);

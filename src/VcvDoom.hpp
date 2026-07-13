@@ -31,7 +31,7 @@ struct VcvDoomModule : Module {
 	// WAD Configuration & State
 	std::string wadPath = "";
 	bool hasWad = false;
-	std::string savedGameHex = "";
+	std::string savedGameData = "";
 	int xMoveMode = 1; // 0 = strafe, 1 = rotate
 	bool savePending = false;
 	double saveDeadline = 0.0;

@@ -906,6 +906,8 @@ void G_Ticker (void)
     int		i;
     int		buf; 
     ticcmd_t*	cmd;
+
+    I_SetRackGameCatalog((int) gamemode, (int) gamemission);
     
     // Check for level warp requested from VCV Rack UI
     int epsd;

@@ -522,15 +522,20 @@ struct VcvDoomWidget final : ModuleWidget {
 		));
 
 		if (I_GetEngineStatus() == 2) {
+			int rackMode = 0;
+			int rackMission = 0;
+			I_GetRackGameCatalog(&rackMode, &rackMission);
+			const GameMode_t gameMode = (GameMode_t) rackMode;
+			const GameMission_t gameMission = (GameMission_t) rackMission;
 			menu->addChild(createSubmenuItem("Warp to Level", "", [=](Menu* submenu) {
-				if (gamemode != commercial) {
+				if (gameMode != commercial) {
 					// Doom 1 style: Episodes & Missions
 					for (int ep = 1; ep <= 5; ++ep) {
-						if (D_ValidEpisodeMap(gamemission, gamemode, ep, 1)) {
+						if (D_ValidEpisodeMap(gameMission, gameMode, ep, 1)) {
 							std::string epName = "Episode " + std::to_string(ep);
 							submenu->addChild(createSubmenuItem(epName, "", [=](Menu* epmenu) {
 								for (int map = 1; map <= 9; ++map) {
-									if (D_ValidEpisodeMap(gamemission, gamemode, ep, map)) {
+									if (D_ValidEpisodeMap(gameMission, gameMode, ep, map)) {
 										std::string mapLabel = "Mission " + std::to_string(map);
 										epmenu->addChild(createMenuItem(mapLabel, "", [=]() {
 										I_RequestRackWarp(ep, map);
@@ -544,7 +549,7 @@ struct VcvDoomWidget final : ModuleWidget {
 					// Doom 2 style: Single episode with sequential MAPs
 					int totalMaps = 0;
 					for (int map = 1; map <= 60; ++map) {
-						if (D_ValidEpisodeMap(gamemission, gamemode, 1, map)) {
+						if (D_ValidEpisodeMap(gameMission, gameMode, 1, map)) {
 							totalMaps = map;
 						}
 					}
