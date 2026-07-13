@@ -7,12 +7,10 @@ extern "C" {
 #include "doom/doomkeys.h"
 #include "doom/m_controls.h"
 #include "doom/doomstat.h"
-	extern volatile int doom_engine_status;
+#include "doom/i_video.h"
+#include "doom/i_system.h"
 	extern char doom_engine_error[256];
 	void I_CopyTargetRGBA(uint8_t *buffer);
-	extern volatile int g_cv_warp_epsd;
-	extern volatile int g_cv_warp_map;
-	extern volatile int g_cv_cheat_request;
 }
 
 static int mapGlfwToDoomKey(int glfwKey) {
@@ -237,6 +235,9 @@ struct VcvDoomViewportWidget final : Widget {
 
 	void step() override {
 		Widget::step();
+		if (module) {
+			module->pollExplicitSave();
+		}
 		if (module && module->isFocused.load()) {
 			if (glfwGetWindowAttrib(APP->window->win, GLFW_FOCUSED) == GLFW_FALSE) {
 				releaseCapture();
@@ -376,7 +377,7 @@ struct VcvDoomViewportWidget final : Widget {
 			return;
 		}
 
-		if (doom_engine_status < 0) {
+		if (I_GetEngineStatus() < 0) {
 			nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
 			nvgFontFaceId(args.vg, APP->window->uiFont->handle);
 			nvgFontSize(args.vg, 16.f);
@@ -520,7 +521,7 @@ struct VcvDoomWidget final : ModuleWidget {
 			}
 		));
 
-		if (doom_engine_status == 2) {
+		if (I_GetEngineStatus() == 2) {
 			menu->addChild(createSubmenuItem("Warp to Level", "", [=](Menu* submenu) {
 				if (gamemode != commercial) {
 					// Doom 1 style: Episodes & Missions
@@ -532,8 +533,7 @@ struct VcvDoomWidget final : ModuleWidget {
 									if (D_ValidEpisodeMap(gamemission, gamemode, ep, map)) {
 										std::string mapLabel = "Mission " + std::to_string(map);
 										epmenu->addChild(createMenuItem(mapLabel, "", [=]() {
-											g_cv_warp_epsd = ep;
-											g_cv_warp_map = map;
+										I_RequestRackWarp(ep, map);
 										}));
 									}
 								}
@@ -553,8 +553,7 @@ struct VcvDoomWidget final : ModuleWidget {
 						for (int map = 1; map <= totalMaps; ++map) {
 							std::string mapLabel = std::string("MAP ") + (map < 10 ? "0" : "") + std::to_string(map);
 							submenu->addChild(createMenuItem(mapLabel, "", [=]() {
-								g_cv_warp_epsd = 1;
-								g_cv_warp_map = map;
+								I_RequestRackWarp(1, map);
 							}));
 						}
 					} else {
@@ -565,8 +564,7 @@ struct VcvDoomWidget final : ModuleWidget {
 								for (int map = startMap; map <= endMap; ++map) {
 									std::string mapLabel = std::string("MAP ") + (map < 10 ? "0" : "") + std::to_string(map);
 									groupmenu->addChild(createMenuItem(mapLabel, "", [=]() {
-										g_cv_warp_epsd = 1;
-										g_cv_warp_map = map;
+										I_RequestRackWarp(1, map);
 									}));
 								}
 							}));
@@ -577,13 +575,13 @@ struct VcvDoomWidget final : ModuleWidget {
 
 			menu->addChild(createSubmenuItem("Cheats", "", [=](Menu* submenu) {
 				submenu->addChild(createMenuItem("IDDQD (God Mode)", "", [=]() {
-					g_cv_cheat_request = 1;
+					I_RequestRackCheat(1);
 				}));
 				submenu->addChild(createMenuItem("IDKFA (Ammo/Keys/Weapons)", "", [=]() {
-					g_cv_cheat_request = 2;
+					I_RequestRackCheat(2);
 				}));
 				submenu->addChild(createMenuItem("IDCLIP (Noclip)", "", [=]() {
-					g_cv_cheat_request = 3;
+					I_RequestRackCheat(3);
 				}));
 			}));
 		}

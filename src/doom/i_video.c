@@ -49,19 +49,109 @@ void I_ShutdownGraphics(void)
 static byte active_palette[768];
 static uint8_t *doom_rgba_buffer = NULL;
 static pthread_mutex_t doom_rgba_mutex = PTHREAD_MUTEX_INITIALIZER;
-volatile int doom_dirty_frame = 0;
+static _Atomic int doom_dirty_frame = 0;
 static _Atomic int doom_exit_requested = 0;
 int usemouse = 1;
-volatile int g_game_health = 100;
-volatile int g_game_frag_trigger = 0;
-volatile float g_cv_xmove = 0.0f;
-volatile float g_cv_ymove = 0.0f;
-volatile int g_cv_fire = 0;
-volatile int g_cv_weapon = -1;
-volatile int g_cv_xmove_mode = 1;
-volatile int g_cv_warp_epsd = 0;
-volatile int g_cv_warp_map = 0;
-volatile int g_cv_cheat_request = 0;
+static _Atomic int g_game_health = 100;
+static _Atomic int g_game_frag_trigger = 0;
+static _Atomic float g_cv_xmove = 0.0f;
+static _Atomic float g_cv_ymove = 0.0f;
+static _Atomic int g_cv_fire = 0;
+static _Atomic int g_cv_weapon = -1;
+static _Atomic int g_cv_xmove_mode = 1;
+static _Atomic int g_cv_warp_epsd = 0;
+static _Atomic int g_cv_warp_map = 0;
+static _Atomic int g_cv_cheat_request = 0;
+static _Atomic int g_cv_save_request = 0;
+
+void I_SetRackCvControls(float xmove, float ymove, int fire, int weapon, int xmove_mode)
+{
+    atomic_store_explicit(&g_cv_xmove, xmove, memory_order_relaxed);
+    atomic_store_explicit(&g_cv_ymove, ymove, memory_order_relaxed);
+    atomic_store_explicit(&g_cv_fire, fire, memory_order_relaxed);
+    atomic_store_explicit(&g_cv_weapon, weapon, memory_order_relaxed);
+    atomic_store_explicit(&g_cv_xmove_mode, xmove_mode, memory_order_release);
+}
+
+void I_GetRackCvControls(float *xmove, float *ymove, int *fire, int *weapon, int *xmove_mode)
+{
+    if (xmove)
+        *xmove = atomic_load_explicit(&g_cv_xmove, memory_order_acquire);
+    if (ymove)
+        *ymove = atomic_load_explicit(&g_cv_ymove, memory_order_acquire);
+    if (fire)
+        *fire = atomic_load_explicit(&g_cv_fire, memory_order_acquire);
+    if (weapon)
+        *weapon = atomic_load_explicit(&g_cv_weapon, memory_order_acquire);
+    if (xmove_mode)
+        *xmove_mode = atomic_load_explicit(&g_cv_xmove_mode, memory_order_acquire);
+}
+
+void I_GetRackGameState(int *health, int *frag_triggered)
+{
+    if (health)
+        *health = atomic_load_explicit(&g_game_health, memory_order_acquire);
+    if (frag_triggered)
+        *frag_triggered = atomic_exchange_explicit(&g_game_frag_trigger, 0, memory_order_acq_rel);
+}
+
+void I_SetRackGameHealth(int health)
+{
+    atomic_store_explicit(&g_game_health, health, memory_order_release);
+}
+
+void I_SetRackFragTrigger(void)
+{
+    atomic_store_explicit(&g_game_frag_trigger, 1, memory_order_release);
+}
+
+void I_RequestRackWarp(int episode, int map)
+{
+    atomic_store_explicit(&g_cv_warp_epsd, episode, memory_order_relaxed);
+    atomic_store_explicit(&g_cv_warp_map, map, memory_order_release);
+}
+
+int I_TakeRackWarp(int *episode, int *map)
+{
+    int requested_map = atomic_exchange_explicit(&g_cv_warp_map, 0, memory_order_acq_rel);
+    if (requested_map <= 0)
+        return 0;
+    if (episode)
+        *episode = atomic_load_explicit(&g_cv_warp_epsd, memory_order_acquire);
+    if (map)
+        *map = requested_map;
+    return 1;
+}
+
+void I_RequestRackCheat(int request)
+{
+    atomic_store_explicit(&g_cv_cheat_request, request, memory_order_release);
+}
+
+int I_TakeRackCheat(void)
+{
+    return atomic_exchange_explicit(&g_cv_cheat_request, 0, memory_order_acq_rel);
+}
+
+void I_RequestRackSave(void)
+{
+    atomic_store_explicit(&g_cv_save_request, 1, memory_order_release);
+}
+
+int I_TakeRackSaveRequest(void)
+{
+    return atomic_exchange_explicit(&g_cv_save_request, 0, memory_order_acq_rel);
+}
+
+void I_MarkRackFrameDirty(void)
+{
+    atomic_store_explicit(&doom_dirty_frame, 1, memory_order_release);
+}
+
+int I_TakeRackFrameDirty(void)
+{
+    return atomic_exchange_explicit(&doom_dirty_frame, 0, memory_order_acq_rel);
+}
 
 void I_RequestDoomExit(void)
 {
@@ -106,7 +196,7 @@ void I_FinishUpdate(void)
             doom_rgba_buffer[i * 4 + 3] = 255;                          // A
         }
 		pthread_mutex_unlock(&doom_rgba_mutex);
-        doom_dirty_frame = 1;
+        I_MarkRackFrameDirty();
     }
 }
 

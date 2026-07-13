@@ -461,8 +461,7 @@ void D_DoomLoop (void)
         wipegamestate = gamestate;
     }
 
-    extern volatile int doom_engine_status;
-    doom_engine_status = 2;
+    I_SetEngineStatus(2);
     while (!I_DoomExitRequested())
     {
 	// frame syncronous IO operations

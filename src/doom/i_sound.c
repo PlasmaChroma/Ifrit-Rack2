@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sched.h>
+#include <stdatomic.h>
 #include "doomtype.h"
 #include "i_sound.h"
 #include "w_wad.h"
@@ -31,20 +33,40 @@ int snd_pitchshift = 0;
 
 mixer_channel_t g_mixer_channels[MIXER_CHANNELS];
 
-void I_InitSound(boolean use_sfx_prefix)
+static atomic_int rack_audio_updating = 0;
+static atomic_uint rack_audio_readers = 0;
+
+int I_BeginRackAudioRead(void)
 {
-    I_ShutdownSound();
-    for (int i = 0; i < MIXER_CHANNELS; ++i)
-    {
-        g_mixer_channels[i].active = 0;
-        g_mixer_channels[i].data = NULL;
-        g_mixer_channels[i].capacity = 0;
-        g_mixer_channels[i].length = 0;
-        g_mixer_channels[i].pos = 0.0f;
-    }
+    if (atomic_load_explicit(&rack_audio_updating, memory_order_acquire))
+        return 0;
+
+    atomic_fetch_add_explicit(&rack_audio_readers, 1, memory_order_acquire);
+    if (!atomic_load_explicit(&rack_audio_updating, memory_order_acquire))
+        return 1;
+
+    atomic_fetch_sub_explicit(&rack_audio_readers, 1, memory_order_release);
+    return 0;
 }
 
-void I_ShutdownSound(void)
+void I_EndRackAudioRead(void)
+{
+    atomic_fetch_sub_explicit(&rack_audio_readers, 1, memory_order_release);
+}
+
+static void BeginRackAudioUpdate(void)
+{
+    atomic_store_explicit(&rack_audio_updating, 1, memory_order_release);
+    while (atomic_load_explicit(&rack_audio_readers, memory_order_acquire) != 0)
+        sched_yield();
+}
+
+static void EndRackAudioUpdate(void)
+{
+    atomic_store_explicit(&rack_audio_updating, 0, memory_order_release);
+}
+
+static void ShutdownSoundUnsafe(void)
 {
     for (int i = 0; i < MIXER_CHANNELS; ++i)
     {
@@ -56,6 +78,28 @@ void I_ShutdownSound(void)
             g_mixer_channels[i].capacity = 0;
         }
     }
+}
+
+void I_InitSound(boolean use_sfx_prefix)
+{
+    BeginRackAudioUpdate();
+    ShutdownSoundUnsafe();
+    for (int i = 0; i < MIXER_CHANNELS; ++i)
+    {
+        g_mixer_channels[i].active = 0;
+        g_mixer_channels[i].data = NULL;
+        g_mixer_channels[i].capacity = 0;
+        g_mixer_channels[i].length = 0;
+        g_mixer_channels[i].pos = 0.0f;
+    }
+    EndRackAudioUpdate();
+}
+
+void I_ShutdownSound(void)
+{
+    BeginRackAudioUpdate();
+    ShutdownSoundUnsafe();
+    EndRackAudioUpdate();
 }
 
 int I_GetSfxLumpNum(sfxinfo_t *sfxinfo)
@@ -74,11 +118,13 @@ void I_UpdateSound(void)
 
 void I_UpdateSoundParams(int channel, int vol, int sep)
 {
+    BeginRackAudioUpdate();
     if (channel >= 0 && channel < MIXER_CHANNELS)
     {
         g_mixer_channels[channel].vol = vol;
         g_mixer_channels[channel].sep = sep;
     }
+    EndRackAudioUpdate();
 }
 
 int I_StartSound(sfxinfo_t *sfxinfo, int channel, int vol, int sep, int pitch)
@@ -108,6 +154,7 @@ int I_StartSound(sfxinfo_t *sfxinfo, int channel, int vol, int sep, int pitch)
     if (length == 0)
         return 0;
 
+    BeginRackAudioUpdate();
     mixer_channel_t *chan = &g_mixer_channels[channel];
 
     // Atomically deactivate before mutating
@@ -119,6 +166,7 @@ int I_StartSound(sfxinfo_t *sfxinfo, int channel, int vol, int sep, int pitch)
         uint8_t *new_buf = (uint8_t *)realloc(chan->data, length);
         if (!new_buf)
         {
+            EndRackAudioUpdate();
             return 0;
         }
         chan->data = new_buf;
@@ -142,6 +190,7 @@ int I_StartSound(sfxinfo_t *sfxinfo, int channel, int vol, int sep, int pitch)
 
     // Mark active
     chan->active = 1;
+    EndRackAudioUpdate();
 
     // The Doom sound layer stores this handle and passes it unchanged to
     // I_UpdateSoundParams(), I_StopSound(), and I_SoundIsPlaying().
@@ -150,19 +199,24 @@ int I_StartSound(sfxinfo_t *sfxinfo, int channel, int vol, int sep, int pitch)
 
 void I_StopSound(int channel)
 {
+    BeginRackAudioUpdate();
     if (channel >= 0 && channel < MIXER_CHANNELS)
     {
         g_mixer_channels[channel].active = 0;
     }
+    EndRackAudioUpdate();
 }
 
 boolean I_SoundIsPlaying(int channel)
 {
+    boolean result = false;
+    BeginRackAudioUpdate();
     if (channel >= 0 && channel < MIXER_CHANNELS)
     {
-        return g_mixer_channels[channel].active != 0;
+        result = g_mixer_channels[channel].active != 0;
     }
-    return false;
+    EndRackAudioUpdate();
+    return result;
 }
 
 void I_PrecacheSounds(sfxinfo_t *sounds, int num_sounds)
@@ -171,6 +225,7 @@ void I_PrecacheSounds(sfxinfo_t *sounds, int num_sounds)
 
 void I_InitMusic(void)
 {
+    BeginRackAudioUpdate();
     g_music_playing = 0;
     g_music_looping = 0;
     g_music_ticks = 0.0;
@@ -181,6 +236,7 @@ void I_InitMusic(void)
     g_music_generation = 0;
     g_active_midi_file = NULL;
     g_active_midi_iter = NULL;
+    EndRackAudioUpdate();
 }
 
 void I_ShutdownMusic(void)
@@ -193,15 +249,19 @@ void I_SetMusicVolume(int volume)
 
 void I_PauseSong(void)
 {
+    BeginRackAudioUpdate();
     g_music_playing = 0;
+    EndRackAudioUpdate();
 }
 
 void I_ResumeSong(void)
 {
+    BeginRackAudioUpdate();
     if (g_active_midi_file && g_active_midi_iter)
     {
         g_music_playing = 1;
     }
+    EndRackAudioUpdate();
 }
 
 void *I_RegisterSong(void *data, int len)
@@ -239,17 +299,25 @@ void *I_RegisterSong(void *data, int len)
 void I_UnRegisterSong(void *handle)
 {
     if (handle) {
+        BeginRackAudioUpdate();
         if (g_active_midi_file == handle) {
-            I_StopSong();
+            g_music_playing = 0;
+            if (g_active_midi_iter) {
+                MIDI_FreeIterator((midi_track_iter_t *)g_active_midi_iter);
+                g_active_midi_iter = NULL;
+            }
+            g_active_midi_file = NULL;
+            ++g_music_generation;
         }
         MIDI_FreeFile((midi_file_t *)handle);
+        EndRackAudioUpdate();
     }
 }
 
 void I_PlaySong(void *handle, boolean looping)
 {
     if (!handle) return;
-    
+    BeginRackAudioUpdate();
     g_music_playing = 0;
     if (g_active_midi_iter) {
         MIDI_FreeIterator((midi_track_iter_t *)g_active_midi_iter);
@@ -266,10 +334,12 @@ void I_PlaySong(void *handle, boolean looping)
     g_next_event_tick = MIDI_GetDeltaTime((midi_track_iter_t *)g_active_midi_iter);
     g_music_playing = 1;
     ++g_music_generation;
+    EndRackAudioUpdate();
 }
 
 void I_StopSong(void)
 {
+    BeginRackAudioUpdate();
     g_music_playing = 0;
     if (g_active_midi_iter) {
         MIDI_FreeIterator((midi_track_iter_t *)g_active_midi_iter);
@@ -277,11 +347,16 @@ void I_StopSong(void)
     }
     g_active_midi_file = NULL;
     ++g_music_generation;
+    EndRackAudioUpdate();
 }
 
 boolean I_MusicIsPlaying(void)
 {
-    return g_music_playing != 0;
+    boolean result;
+    BeginRackAudioUpdate();
+    result = g_music_playing != 0;
+    EndRackAudioUpdate();
+    return result;
 }
 
 void I_BindSoundVariables(void)

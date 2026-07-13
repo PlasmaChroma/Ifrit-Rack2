@@ -4,11 +4,11 @@
 #include <thread>
 
 extern "C" {
+	#include "doom/i_video.h"
+	#include "doom/i_system.h"
 	void D_DoomMain(void);
 	void I_SetTargetRGBA(uint8_t *buffer);
-	extern volatile int doom_engine_status;
 	extern char doom_engine_error[256];
-	extern volatile int doom_dirty_frame;
 	void W_Shutdown(void);
 	void I_RequestDoomExit(void);
 	void I_ClearDoomExitRequest(void);
@@ -17,14 +17,6 @@ extern "C" {
 	extern char** myargv;
 #include "doom/i_sound.h"
 #include "doom/midifile.h"
-	extern volatile float g_cv_xmove;
-	extern volatile float g_cv_ymove;
-	extern volatile int g_cv_fire;
-	extern volatile int g_cv_weapon;
-	extern volatile int g_cv_xmove_mode;
-	extern volatile int g_game_health;
-	extern volatile int g_game_frag_trigger;
-
 	void G_SaveGame(int slot, char* description);
 }
 
@@ -65,6 +57,20 @@ struct DoomDspAccess {
 	}
 };
 
+struct DoomAudioAccess {
+	bool acquired = false;
+
+	explicit DoomAudioAccess(bool enabled) {
+		acquired = enabled && I_BeginRackAudioRead() != 0;
+	}
+
+	~DoomAudioAccess() {
+		if (acquired) {
+			I_EndRackAudioRead();
+		}
+	}
+};
+
 struct DoomEngineTransition {
 	DoomEngineTransition() {
 		gDoomEngineTransitioning.store(true, std::memory_order_release);
@@ -78,13 +84,17 @@ struct DoomEngineTransition {
 	}
 };
 
-static void stopDoomEngine() {
-	DoomEngineTransition engineTransition;
+static void stopDoomEngineLocked() {
 	I_RequestDoomExit();
 	if (gDoomThread.joinable()) {
 		gDoomThread.join();
 	}
 	W_Shutdown();
+}
+
+static void stopDoomEngine() {
+	DoomEngineTransition engineTransition;
+	stopDoomEngineLocked();
 }
 
 // A detached thread would continue executing code from this plugin after Rack
@@ -138,24 +148,23 @@ void VcvDoomModule::process(const ProcessArgs& args) {
 	float outL = 0.f;
 	float outR = 0.f;
 	DoomDspAccess engineAccess;
+	DoomAudioAccess audioAccess(gDoomModuleOwner == this && hasWad && !isBypassed());
 
-	if (engineAccess.acquired && gDoomModuleOwner == this && hasWad
-			&& doom_engine_status == 2 && !isBypassed()) {
+	if (engineAccess.acquired && audioAccess.acquired && gDoomModuleOwner == this && hasWad
+			&& I_GetEngineStatus() == 2 && !isBypassed()) {
 		// 1. Process CV Inputs
-		g_cv_xmove_mode = xMoveMode;
-		g_cv_xmove = inputs[X_MOVE_INPUT].getNormalVoltage(0.f);
-		g_cv_ymove = inputs[Y_MOVE_INPUT].getNormalVoltage(0.f);
-		g_cv_fire = (inputs[FIRE_GATE_INPUT].getNormalVoltage(0.f) >= 1.f) ? 1 : 0;
-
+		int weapon = -1;
 		if (inputs[WEAPON_CV_INPUT].isConnected()) {
 			float v = inputs[WEAPON_CV_INPUT].getVoltage();
 			int w = (int)(v + 0.5f);
 			if (w < 0) w = 0;
 			if (w > 6) w = 6;
-			g_cv_weapon = w;
-		} else {
-			g_cv_weapon = -1;
+			weapon = w;
 		}
+		I_SetRackCvControls(inputs[X_MOVE_INPUT].getNormalVoltage(0.f),
+			inputs[Y_MOVE_INPUT].getNormalVoltage(0.f),
+			inputs[FIRE_GATE_INPUT].getNormalVoltage(0.f) >= 1.f,
+			weapon, xMoveMode);
 
 		// Song changes can happen entirely between two Rack process calls.
 		// Clear all prior notes when Doom publishes a new music generation.
@@ -168,11 +177,13 @@ void VcvDoomModule::process(const ProcessArgs& args) {
 		}
 
 		// 2. Process CV Outputs
-		float healthVolt = (float)g_game_health / 100.f * 10.f;
+		int health = 0;
+		int fragTriggered = 0;
+		I_GetRackGameState(&health, &fragTriggered);
+		float healthVolt = (float)health / 100.f * 10.f;
 		outputs[HEALTH_OUTPUT].setVoltage(clamp(healthVolt, 0.f, 10.f));
 
-		if (g_game_frag_trigger) {
-			g_game_frag_trigger = 0;
+		if (fragTriggered) {
 			fragTrigTime = (int)(0.010f * args.sampleRate); // 10ms pulse
 		}
 
@@ -238,7 +249,11 @@ void VcvDoomModule::process(const ProcessArgs& args) {
 			double deltaTicks = deltaSecs * g_music_ticks_per_sec;
 			g_music_ticks += deltaTicks;
 
-			while (g_music_ticks >= g_next_event_tick) {
+		// Bound work in the audio callback. Zero-delta MIDI events are valid,
+		// but an arbitrarily large burst must be spread across later samples.
+		int eventsProcessed = 0;
+		constexpr int kMaxMidiEventsPerSample = 64;
+		while (g_music_ticks >= g_next_event_tick && eventsProcessed++ < kMaxMidiEventsPerSample) {
 				midi_event_t* event = nullptr;
 				if (MIDI_GetNextEvent((midi_track_iter_t*)g_active_midi_iter, &event)) {
 					if (event->event_type == MIDI_EVENT_NOTE_ON) {
@@ -339,8 +354,7 @@ void VcvDoomModule::process(const ProcessArgs& args) {
 		}
 
 		// Signal graphical frame updates
-		if (doom_dirty_frame) {
-			doom_dirty_frame = 0;
+		if (I_TakeRackFrameDirty()) {
 			dirtyFrame.store(true);
 		}
 	} else {
@@ -368,7 +382,7 @@ bool VcvDoomModule::loadWad(const std::string& path, int startSlot) {
 		return false;
 	}
 
-	if (hasWad && wadPath == path && startSlot < 0 && gDoomThread.joinable() && doom_engine_status == 2) {
+	if (hasWad && wadPath == path && startSlot < 0 && gDoomThread.joinable() && I_GetEngineStatus() == 2) {
 		return true;
 	}
 
@@ -379,14 +393,24 @@ bool VcvDoomModule::loadWad(const std::string& path, int startSlot) {
 	}
 
 	// Basic WAD header check: First 4 bytes must be "IWAD" or "PWAD".
-	char header[4];
-	file.read(header, 4);
-	if (file.gcount() < 4) {
+	uint8_t header[12];
+	file.read(reinterpret_cast<char*>(header), sizeof(header));
+	if (file.gcount() != (std::streamsize)sizeof(header)) {
 		return false;
 	}
 
-	std::string magic(header, 4);
+	std::string magic(reinterpret_cast<char*>(header), 4);
 	if (magic != "IWAD" && magic != "PWAD") {
+		return false;
+	}
+	const uint32_t lumpCount = (uint32_t)header[4] | ((uint32_t)header[5] << 8)
+		| ((uint32_t)header[6] << 16) | ((uint32_t)header[7] << 24);
+	const uint32_t directoryOffset = (uint32_t)header[8] | ((uint32_t)header[9] << 8)
+		| ((uint32_t)header[10] << 16) | ((uint32_t)header[11] << 24);
+	file.seekg(0, std::ios::end);
+	const std::streamoff fileSize = file.tellg();
+	if (fileSize < 12 || directoryOffset > (uint64_t)fileSize
+		|| lumpCount > ((uint64_t)fileSize - directoryOffset) / 16) {
 		return false;
 	}
 
@@ -395,7 +419,7 @@ bool VcvDoomModule::loadWad(const std::string& path, int startSlot) {
 	hasWad = true;
 
 	// Shut down existing thread if any
-	stopDoomEngine();
+	stopDoomEngineLocked();
 
 	// Ensure the save directory exists
 	std::string saveDir = system::join(asset::user(), "Ifrit/vcvdoom_saves");
@@ -406,9 +430,9 @@ bool VcvDoomModule::loadWad(const std::string& path, int startSlot) {
 
 	// Start a new thread
 	I_ClearDoomExitRequest();
-	doom_dirty_frame = 0;
+	I_TakeRackFrameDirty();
 	doom_engine_error[0] = '\0';
-	doom_engine_status = 1;
+	I_SetEngineStatus(1);
 	I_SetTargetRGBA(gDoomFramebuffer);
 	const std::string engineWadPath = wadPath;
 	gDoomThread = std::thread([engineWadPath, saveDir, logPath, startSlot]() {
@@ -501,6 +525,9 @@ static std::string encodeHex(const std::vector<uint8_t>& data) {
 
 static std::vector<uint8_t> decodeHex(const std::string& hex) {
 	std::vector<uint8_t> result;
+	if (hex.size() % 2 != 0 || hex.size() > 2 * 1024 * 1024) {
+		return result;
+	}
 	result.reserve(hex.size() / 2);
 	for (size_t i = 0; i + 1 < hex.size(); i += 2) {
 		char high = hex[i];
@@ -509,10 +536,12 @@ static std::vector<uint8_t> decodeHex(const std::string& hex) {
 		if (high >= '0' && high <= '9') byte |= (high - '0') << 4;
 		else if (high >= 'a' && high <= 'f') byte |= (high - 'a' + 10) << 4;
 		else if (high >= 'A' && high <= 'F') byte |= (high - 'A' + 10) << 4;
-		
+		else return {};
+
 		if (low >= '0' && low <= '9') byte |= (low - '0');
 		else if (low >= 'a' && low <= 'f') byte |= (low - 'a' + 10);
 		else if (low >= 'A' && low <= 'F') byte |= (low - 'A' + 10);
+		else return {};
 		
 		result.push_back(byte);
 	}
@@ -558,35 +587,39 @@ void VcvDoomModule::dataFromJson(json_t* rootJ) {
 }
 
 void VcvDoomModule::triggerExplicitSave() {
-	if (gDoomModuleOwner == this && hasWad && doom_engine_status == 2) {
+	if (gDoomModuleOwner == this && hasWad && I_GetEngineStatus() == 2) {
 		std::string saveDir = system::join(asset::user(), "Ifrit/vcvdoom_saves");
 		std::string savePath = system::join(saveDir, "doomsav8.dsg");
 		
 		std::remove(savePath.c_str());
-		G_SaveGame(8, (char*)"vcv_explicit_save");
-		
-		// Wait up to 500ms for the file to be written by the Doom thread
-		bool saved = false;
-		for (int i = 0; i < 100; ++i) {
-			std::this_thread::sleep_for(std::chrono::milliseconds(5));
-			std::ifstream check(savePath, std::ios::binary);
-			if (check.good()) {
-				check.seekg(0, std::ios::end);
-				size_t size = check.tellg();
-				if (size > 0) {
-					saved = true;
-					break;
-				}
-			}
-		}
+		I_RequestRackSave();
+		savePending = true;
+		saveDeadline = system::getTime() + 0.5;
+	}
+}
 
-		if (saved) {
-			std::ifstream file(savePath, std::ios::binary);
-			if (file.good()) {
-				std::vector<uint8_t> buffer((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-				savedGameHex = encodeHex(buffer);
-			}
+void VcvDoomModule::pollExplicitSave() {
+	if (!savePending) {
+		return;
+	}
+
+	std::string saveDir = system::join(asset::user(), "Ifrit/vcvdoom_saves");
+	std::string savePath = system::join(saveDir, "doomsav8.dsg");
+	std::ifstream file(savePath, std::ios::binary);
+	if (file.good()) {
+		file.seekg(0, std::ios::end);
+		const std::streamoff size = file.tellg();
+		if (size > 0) {
+			file.seekg(0, std::ios::beg);
+			std::vector<uint8_t> buffer((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+			savedGameHex = encodeHex(buffer);
+			savePending = false;
+			return;
 		}
+	}
+
+	if (system::getTime() >= saveDeadline) {
+		savePending = false;
 	}
 }
 

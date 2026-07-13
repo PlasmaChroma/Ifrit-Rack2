@@ -30,6 +30,7 @@
 
 #include "m_random.h"
 #include "i_system.h"
+#include "i_video.h"
 
 #include "am_map.h"
 
@@ -688,9 +689,8 @@ P_KillMobj
 	if (target->player)
 	    source->player->frags[target->player-players]++;
 
-        extern volatile int g_game_frag_trigger;
         if (source->player == &players[consoleplayer] && (target->flags & MF_COUNTKILL || target->player)) {
-            g_game_frag_trigger = 1;
+            I_SetRackFragTrigger();
         }
     }
     else if (!netgame && (target->flags & MF_COUNTKILL) )
@@ -925,4 +925,3 @@ P_DamageMobj
     }
 			
 }
-

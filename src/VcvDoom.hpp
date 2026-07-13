@@ -33,6 +33,8 @@ struct VcvDoomModule : Module {
 	bool hasWad = false;
 	std::string savedGameHex = "";
 	int xMoveMode = 1; // 0 = strafe, 1 = rotate
+	bool savePending = false;
+	double saveDeadline = 0.0;
 
 	std::atomic<bool> dirtyFrame{false};
 	int fragTrigTime = 0;
@@ -64,5 +66,6 @@ struct VcvDoomModule : Module {
 	void loadGlobalSettings();
 
 	void triggerExplicitSave();
+	void pollExplicitSave();
 	void triggerExplicitLoad();
 };

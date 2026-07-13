@@ -262,6 +262,13 @@ typedef struct {
 
 extern mixer_channel_t g_mixer_channels[MIXER_CHANNELS];
 
+// Rack's audio callback reads mixer and MIDI state without ever blocking.  The
+// Doom thread uses the complementary writer gate before replacing/freeing that
+// state.  A failed reader acquisition means Rack emits silence for that sample
+// while the producer performs the update.
+int I_BeginRackAudioRead(void);
+void I_EndRackAudioRead(void);
+
 // MIDI Sequencer variables for VCV Rack integration
 extern volatile int g_music_playing;
 extern volatile int g_music_looping;

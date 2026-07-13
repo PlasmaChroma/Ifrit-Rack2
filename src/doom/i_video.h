@@ -108,4 +108,19 @@ extern unsigned int joywait;
 void I_SetTargetRGBA(uint8_t *buffer);
 void I_CopyTargetRGBA(uint8_t *buffer);
 
+// Lock-free control/status exchange between Rack and the Doom thread.
+void I_SetRackCvControls(float xmove, float ymove, int fire, int weapon, int xmove_mode);
+void I_GetRackCvControls(float *xmove, float *ymove, int *fire, int *weapon, int *xmove_mode);
+void I_GetRackGameState(int *health, int *frag_triggered);
+void I_SetRackGameHealth(int health);
+void I_SetRackFragTrigger(void);
+void I_RequestRackWarp(int episode, int map);
+int I_TakeRackWarp(int *episode, int *map);
+void I_RequestRackCheat(int request);
+int I_TakeRackCheat(void);
+void I_RequestRackSave(void);
+int I_TakeRackSaveRequest(void);
+void I_MarkRackFrameDirty(void);
+int I_TakeRackFrameDirty(void);
+
 #endif

@@ -72,6 +72,8 @@ void I_RunAtExit(void);
 // The host owns stdout/stderr. Doom diagnostics use this separate file instead.
 void I_SetLogFile(const char *path);
 void I_Log(const char *message);
+int I_GetEngineStatus(void);
+void I_SetEngineStatus(int status);
 
 // Add all system-specific config file variable bindings.
 

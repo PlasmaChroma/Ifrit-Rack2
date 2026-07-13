@@ -597,21 +597,19 @@ void G_BuildTiccmd (ticcmd_t* cmd, int maketic)
     }
 
     // CV Input Mapping
-    extern volatile float g_cv_xmove;
-    extern volatile float g_cv_ymove;
-    extern volatile int g_cv_fire;
-    extern volatile int g_cv_weapon;
-    extern volatile int g_cv_xmove_mode;
-
-    float cv_x = g_cv_xmove;
-    float cv_y = g_cv_ymove;
+    float cv_x = 0.0f;
+    float cv_y = 0.0f;
+    int cv_fire = 0;
+    int cv_weapon = -1;
+    int cv_xmove_mode = 1;
+    I_GetRackCvControls(&cv_x, &cv_y, &cv_fire, &cv_weapon, &cv_xmove_mode);
 
     if (cv_x < -5.f) cv_x = -5.f;
     if (cv_x > 5.f) cv_x = 5.f;
     if (cv_y < -5.f) cv_y = -5.f;
     if (cv_y > 5.f) cv_y = 5.f;
 
-    if (g_cv_xmove_mode == 1)
+    if (cv_xmove_mode == 1)
     {
         // Rotate mode: negative CV turns left, positive CV turns right.
         // Doom angleturn values: negative turns right, positive turns left.
@@ -632,12 +630,12 @@ void G_BuildTiccmd (ticcmd_t* cmd, int maketic)
     if (cmd->forwardmove > MAXPLMOVE) cmd->forwardmove = MAXPLMOVE;
     else if (cmd->forwardmove < -MAXPLMOVE) cmd->forwardmove = -MAXPLMOVE;
 
-    if (g_cv_fire)
+    if (cv_fire)
     {
         cmd->buttons |= BT_ATTACK;
     }
 
-    int cv_w = g_cv_weapon;
+    int cv_w = cv_weapon;
     if (cv_w >= 0 && cv_w <= 6)
     {
         cmd->buttons |= BT_CHANGE;
@@ -645,8 +643,7 @@ void G_BuildTiccmd (ticcmd_t* cmd, int maketic)
     }
 
     // Update health output
-    extern volatile int g_game_health;
-    g_game_health = players[consoleplayer].health;
+    I_SetRackGameHealth(players[consoleplayer].health);
 } 
  
 
@@ -911,22 +908,17 @@ void G_Ticker (void)
     ticcmd_t*	cmd;
     
     // Check for level warp requested from VCV Rack UI
-    extern volatile int g_cv_warp_epsd;
-    extern volatile int g_cv_warp_map;
-    if (g_cv_warp_map > 0)
+    int epsd;
+    int map;
+    if (I_TakeRackWarp(&epsd, &map))
     {
-        int epsd = g_cv_warp_epsd;
-        int map = g_cv_warp_map;
-        g_cv_warp_map = 0; // Reset request
         G_DeferedInitNew(gameskill, epsd, map);
     }
 
     // Check for cheats requested from VCV Rack UI
-    extern volatile int g_cv_cheat_request;
-    if (g_cv_cheat_request > 0)
+    int req = I_TakeRackCheat();
+    if (req > 0)
     {
-        int req = g_cv_cheat_request;
-        g_cv_cheat_request = 0; // Reset request
         player_t* plyr = &players[consoleplayer];
         if (req == 1) // IDDQD
         {
@@ -967,6 +959,11 @@ void G_Ticker (void)
             else
                 plyr->message = DEH_String("No Clipping Off");
         }
+    }
+
+    if (I_TakeRackSaveRequest())
+    {
+        G_SaveGame(8, "vcv_explicit_save");
     }
     
     // do player reborns if needed

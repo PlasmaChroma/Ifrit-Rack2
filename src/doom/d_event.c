@@ -28,6 +28,7 @@
 static event_t events[MAXEVENTS];
 static int eventhead;
 static int eventtail;
+static int eventcount;
 static pthread_mutex_t event_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 //
@@ -37,8 +38,31 @@ static pthread_mutex_t event_mutex = PTHREAD_MUTEX_INITIALIZER;
 void D_PostEvent (event_t* ev)
 {
     pthread_mutex_lock(&event_mutex);
+
+    // Coalesce consecutive mouse-motion events. This preserves the latest
+    // position/buttons without allowing high-rate cursor input to consume the
+    // complete keyboard queue.
+    if (ev->type == ev_mouse && eventcount > 0)
+    {
+        int previous = (eventhead + MAXEVENTS - 1) % MAXEVENTS;
+        if (events[previous].type == ev_mouse)
+        {
+            events[previous] = *ev;
+            pthread_mutex_unlock(&event_mutex);
+            return;
+        }
+    }
+
+    // Keep the most recent state transitions when full. The old ring used
+    // head == tail for both empty and full, causing a complete silent flush.
+    if (eventcount == MAXEVENTS)
+    {
+        eventtail = (eventtail + 1) % MAXEVENTS;
+        --eventcount;
+    }
     events[eventhead] = *ev;
     eventhead = (eventhead + 1) % MAXEVENTS;
+    ++eventcount;
     pthread_mutex_unlock(&event_mutex);
 }
 
@@ -51,7 +75,7 @@ event_t *D_PopEvent(void)
 
     // No more events waiting.
 
-    if (eventtail == eventhead)
+    if (eventcount == 0)
     {
         pthread_mutex_unlock(&event_mutex);
         return NULL;
@@ -62,9 +86,9 @@ event_t *D_PopEvent(void)
     // Advance to the next event in the queue.
 
     eventtail = (eventtail + 1) % MAXEVENTS;
+    --eventcount;
 
     pthread_mutex_unlock(&event_mutex);
     return &popped_event;
 }
-
 

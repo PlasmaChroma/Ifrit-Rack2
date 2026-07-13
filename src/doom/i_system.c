@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
+#include <stdatomic.h>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -32,7 +33,7 @@
 
 // Exposed to the Rack module so startup failures in the headless engine do
 // not disappear into the host process' stderr stream.
-volatile int doom_engine_status = 0;
+static _Atomic int doom_engine_status = 0;
 char doom_engine_error[256] = "";
 
 typedef struct atexit_listentry_s atexit_listentry_t;
@@ -46,6 +47,16 @@ struct atexit_listentry_s
 
 static atexit_listentry_t *exit_funcs = NULL;
 static FILE *doom_log = NULL;
+
+int I_GetEngineStatus(void)
+{
+    return atomic_load_explicit(&doom_engine_status, memory_order_acquire);
+}
+
+void I_SetEngineStatus(int status)
+{
+    atomic_store_explicit(&doom_engine_status, status, memory_order_release);
+}
 
 static void I_CloseLogFile(void)
 {
@@ -282,7 +293,7 @@ void I_Error (char *error, ...)
     va_copy(error_copy, argptr);
     vsnprintf(doom_engine_error, sizeof(doom_engine_error), error, error_copy);
     va_end(error_copy);
-    doom_engine_status = -1;
+    I_SetEngineStatus(-1);
     fprintf(stderr, "\nError: ");
     vfprintf(stderr, error, argptr);
     fprintf(stderr, "\n\n");
