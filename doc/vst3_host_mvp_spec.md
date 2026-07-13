@@ -1,4 +1,4 @@
-# Leviathan VST3 Host Modules
+# Ifrit VST3 Host Modules
 ## MVP Engineering Specification
 
 **Status:** Implementation-ready  
@@ -11,7 +11,7 @@
 
 ## 1. Executive Summary
 
-Implement two new Leviathan modules for VCV Rack:
+Implement two new Ifrit modules for VCV Rack:
 
 1. **VST-FX** — hosts a stereo VST3 audio effect.
 2. **VST-Instrument** — hosts a VST3 software instrument driven by Rack polyphonic pitch, gate, velocity, and pressure CV.
@@ -134,7 +134,7 @@ These features may be added later without changing the fundamental module contra
 
 ### 5.1 Initial implementation target
 
-The first correctness target is **Linux x86_64**, matching the primary Leviathan development environment.
+The first correctness target is **Linux x86_64**, matching the primary Ifrit development environment.
 
 ### 5.2 Architectural requirement
 
@@ -167,12 +167,12 @@ The Linux MVP may rely on X11/XWayland-compatible native plugin views. Wayland-n
 - Use the official Steinberg VST3 SDK.
 - Pin the SDK to a known commit or release.
 - Vendor it as a git submodule or reproducible dependency under `dep/vst3sdk`.
-- Build only the hosting components needed by Leviathan.
+- Build only the hosting components needed by Ifrit.
 - Disable SDK examples, tests, plugin samples, and unrelated GUI frameworks in production builds.
 - Preserve all required MIT license notices.
 - Do not add JUCE for the MVP.
 - Do not copy code, assets, layout, branding, or internal behavior from VCV Host.
-- The module UI must be visually and structurally original to Leviathan.
+- The module UI must be visually and structurally original to Ifrit.
 - Treat `VST-FX` and `VST-Instrument` as development names only until trademark-safe public names are selected.
 
 ---
@@ -246,7 +246,7 @@ Do not leak Steinberg types into module headers.
 
 ## 8. Suggested Source Layout
 
-Adapt names to the existing Leviathan repository conventions, but preserve this separation:
+Adapt names to the existing Ifrit repository conventions, but preserve this separation:
 
 ```text
 dep/
@@ -464,7 +464,7 @@ Each slot must visually distinguish:
 - `MappedMissingParameter`
 - `UnavailableNoPlugin`
 
-The mapping element may use the Leviathan eye/glyph language, but state must remain readable without relying only on subtle animation.
+The mapping element may use the Ifrit eye/glyph language, but state must remain readable without relying only on subtle animation.
 
 ### 10.4 Left-click behavior
 
@@ -658,7 +658,7 @@ A single bundle may produce multiple descriptors.
 - Support user-added directories.
 - Search recursively where appropriate.
 - Canonicalize paths and deduplicate entries.
-- Persist custom directories and catalog cache in Leviathan plugin-level settings, not in individual patches.
+- Persist custom directories and catalog cache in Ifrit plugin-level settings, not in individual patches.
 
 ### 12.3 Scanning behavior
 
