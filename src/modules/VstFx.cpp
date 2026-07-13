@@ -252,18 +252,19 @@ struct VstFxWidget : ModuleWidget {
 
         // Identity display & Editor eye
         PluginIdentityDisplay* display = new PluginIdentityDisplay(module ? &module->controller : nullptr);
-        display->box.pos = Vec(15, 20);
+        display->box.pos = Vec(10, 20);
         display->onOpenBrowser = [this]() {
             this->openBrowser();
         };
         addChild(display);
 
         PluginEditorEyeButton* eye = new PluginEditorEyeButton(module ? &module->controller : nullptr);
-        eye->box.pos = Vec(112, 27);
+        eye->box.pos = Vec(116, 27);
         addChild(eye);
 
         // Bypass switch
-        addParam(createParamCentered<SvgSwitch>(Vec(75, 75), module, VstFxModule::BYPASS_PARAM));
+        // SvgSwitch itself has no frames. Use Rack's fully configured two-state switch.
+        addParam(createParamCentered<CKSS>(Vec(75, 75), module, VstFxModule::BYPASS_PARAM));
 
         // Audio ports (using PJ301MPort)
         addInput(createInputCentered<PJ301MPort>(Vec(25, 345), module, VstFxModule::AUDIO_LEFT_INPUT));
@@ -306,7 +307,7 @@ struct VstFxWidget : ModuleWidget {
         }
 
         browserOverlay = new PluginBrowserOverlay(&module->controller, false);
-        browserOverlay->box.pos = Vec(10, 30);
+        browserOverlay->box.pos = Vec(5, 30);
         browserOverlay->onClose = [this]() {
             if (this->browserOverlay) {
                 this->removeChild(this->browserOverlay);

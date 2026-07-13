@@ -5,7 +5,8 @@ using namespace rack;
 namespace ifrit {
 
 PluginIdentityDisplay::PluginIdentityDisplay(PluginHostController* ctrl) : controller(ctrl) {
-    box.size = Vec(140, 38);
+    // Keep the display and its editor button inside the 150 px panel.
+    box.size = Vec(100, 38);
 }
 
 void PluginIdentityDisplay::draw(const DrawArgs& args) {
@@ -31,11 +32,11 @@ void PluginIdentityDisplay::draw(const DrawArgs& args) {
     }
 
     // Limit lengths for UI rendering
-    if (nameText.length() > 18) {
-        nameText = nameText.substr(0, 16) + "...";
+    if (nameText.length() > 13) {
+        nameText = nameText.substr(0, 11) + "...";
     }
-    if (subtitleText.length() > 24) {
-        subtitleText = subtitleText.substr(0, 22) + "...";
+    if (subtitleText.length() > 17) {
+        subtitleText = subtitleText.substr(0, 15) + "...";
     }
 
     nvgSave(args.vg);

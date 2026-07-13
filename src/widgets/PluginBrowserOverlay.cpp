@@ -9,7 +9,7 @@ class PluginBrowserItem : public OpaqueWidget {
 public:
     PluginBrowserItem(PluginHostController* ctrl, const PluginDescriptor& desc, std::function<void()> onClick) 
         : controller(ctrl), descriptor(desc), callback(onClick) {
-        box.size = Vec(140, 22);
+        box.size = Vec(110, 22);
     }
 
     void draw(const DrawArgs& args) override {
@@ -32,8 +32,8 @@ public:
         nvgFillColor(args.vg, hovered ? nvgRGBA(255, 255, 255, 245) : nvgRGBA(200, 210, 220, 200));
         
         std::string name = descriptor.name;
-        if (name.length() > 22) {
-            name = name.substr(0, 20) + "..";
+        if (name.length() > 15) {
+            name = name.substr(0, 13) + "..";
         }
         nvgText(args.vg, 6.0f, box.size.y / 2.0f, name.c_str(), nullptr);
 
@@ -68,7 +68,7 @@ class UnloadPluginItem : public OpaqueWidget {
 public:
     UnloadPluginItem(PluginHostController* ctrl, std::function<void()> onClick) 
         : controller(ctrl), callback(onClick) {
-        box.size = Vec(140, 22);
+        box.size = Vec(110, 22);
     }
 
     void draw(const DrawArgs& args) override {
@@ -110,12 +110,13 @@ private:
 // Main Browser Overlay Implementation
 PluginBrowserOverlay::PluginBrowserOverlay(PluginHostController* ctrl, bool instOnly) 
     : controller(ctrl), instrumentsOnly(instOnly) {
-    box.size = Vec(170, 310);
+    // Keep the browser inside the 150 px-wide module panel.
+    box.size = Vec(140, 310);
 
     // Search Field
     searchField = new SearchField();
     searchField->box.pos = Vec(10, 8);
-    searchField->box.size = Vec(150, 20);
+    searchField->box.size = Vec(120, 20);
     searchField->onTextChange = [this](std::string text) {
         currentQuery = text;
         rebuildList();
@@ -125,8 +126,8 @@ PluginBrowserOverlay::PluginBrowserOverlay(PluginHostController* ctrl, bool inst
     // Scroll Widget
     scrollWidget = new ScrollWidget();
     scrollWidget->box.pos = Vec(10, 34);
-    scrollWidget->box.size = Vec(150, 240);
-    scrollWidget->container->box.size = Vec(140, 0);
+    scrollWidget->box.size = Vec(120, 240);
+    scrollWidget->container->box.size = Vec(110, 0);
     addChild(scrollWidget);
 
     container = scrollWidget->container;

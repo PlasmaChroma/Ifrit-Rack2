@@ -334,19 +334,21 @@ struct VstInstrumentWidget : ModuleWidget {
 
         // Identity display & Editor eye
         PluginIdentityDisplay* display = new PluginIdentityDisplay(module ? &module->controller : nullptr);
-        display->box.pos = Vec(15, 20);
+        display->box.pos = Vec(10, 20);
         display->onOpenBrowser = [this]() {
             this->openBrowser();
         };
         addChild(display);
 
         PluginEditorEyeButton* eye = new PluginEditorEyeButton(module ? &module->controller : nullptr);
-        eye->box.pos = Vec(112, 27);
+        eye->box.pos = Vec(116, 27);
         addChild(eye);
 
         // Bypass & Panic controls
-        addParam(createParamCentered<SvgSwitch>(Vec(45, 75), module, VstInstrumentModule::BYPASS_PARAM));
-        addParam(createParamCentered<SvgSwitch>(Vec(105, 75), module, VstInstrumentModule::PANIC_PARAM));
+        // SvgSwitch itself has no frames. CKSS and TL1105 include their frames;
+        // TL1105 is momentary, which matches the panic trigger's semantics.
+        addParam(createParamCentered<CKSS>(Vec(45, 75), module, VstInstrumentModule::BYPASS_PARAM));
+        addParam(createParamCentered<TL1105>(Vec(105, 75), module, VstInstrumentModule::PANIC_PARAM));
 
         // Audio & Poly CV ports (18-step spacing centered)
         addInput(createInputCentered<PJ301MPort>(Vec(18, 345), module, VstInstrumentModule::VOCT_INPUT));
@@ -355,7 +357,7 @@ struct VstInstrumentWidget : ModuleWidget {
         addInput(createInputCentered<PJ301MPort>(Vec(90, 345), module, VstInstrumentModule::PRESSURE_INPUT));
         
         addOutput(createOutputCentered<PJ301MPort>(Vec(114, 345), module, VstInstrumentModule::AUDIO_LEFT_OUTPUT));
-        addOutput(createOutputCentered<PJ301MPort>(Vec(138, 345), module, VstInstrumentModule::AUDIO_RIGHT_OUTPUT));
+        addOutput(createOutputCentered<PJ301MPort>(Vec(132, 345), module, VstInstrumentModule::AUDIO_RIGHT_OUTPUT));
 
         // Mapping slots grid (2 columns of 8 rows)
         for (int i = 0; i < 8; ++i) {
@@ -392,7 +394,7 @@ struct VstInstrumentWidget : ModuleWidget {
         }
 
         browserOverlay = new PluginBrowserOverlay(&module->controller, true); // true = instruments only
-        browserOverlay->box.pos = Vec(10, 30);
+        browserOverlay->box.pos = Vec(5, 30);
         browserOverlay->onClose = [this]() {
             if (this->browserOverlay) {
                 this->removeChild(this->browserOverlay);
