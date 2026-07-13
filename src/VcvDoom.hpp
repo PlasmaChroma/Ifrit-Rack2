@@ -1,6 +1,6 @@
 #pragma once
 
-#include "plugin.hpp"
+#include "ifrit_plugin.hpp"
 #include <atomic>
 #include <string>
 

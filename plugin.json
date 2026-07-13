@@ -22,6 +22,27 @@
         "External"
       ],
       "hidden": false
+    },
+    {
+      "slug": "VST-FX",
+      "name": "VST-FX",
+      "description": "VST3 Stereo Effect Host Module",
+      "tags": [
+        "Host",
+        "Effect"
+      ],
+      "hidden": false
+    },
+    {
+      "slug": "VST-Instrument",
+      "name": "VST-Instrument",
+      "description": "VST3 Polyphonic Instrument Host Module",
+      "tags": [
+        "Host",
+        "Polyphonic",
+        "Instrument"
+      ],
+      "hidden": false
     }
   ]
 }

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="150" height="380">
+  <defs>
+    <!-- Dark glassmorphic background gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0c0f12" />
+      <stop offset="100%" stop-color="#141a20" />
+    </linearGradient>
+    
+    <!-- Cyberpunk neon cyan glow -->
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#00ffcc" stop-opacity="0.3" />
+      <stop offset="100%" stop-color="#005544" stop-opacity="0.1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background panel -->
+  <rect width="150" height="380" rx="0" fill="url(#bgGrad)" />
+  
+  <!-- Subtle border highlight -->
+  <rect x="0.5" y="0.5" width="149" height="379" rx="0" fill="none" stroke="url(#borderGrad)" stroke-width="1" />
+
+  <!-- Vertical design lines -->
+  <line x1="8" y1="0" x2="8" y2="380" stroke="#00ffcc" stroke-opacity="0.08" stroke-dasharray="2,2" />
+  <line x1="142" y1="0" x2="142" y2="380" stroke="#00ffcc" stroke-opacity="0.08" stroke-dasharray="2,2" />
+
+  <!-- Section Headers / Labels -->
+  <text x="45" y="93" font-family="monospace" font-size="8" font-weight="bold" fill="#00ffcc" fill-opacity="0.7" text-anchor="middle" letter-spacing="1">BYPASS</text>
+  <text x="105" y="93" font-family="monospace" font-size="8" font-weight="bold" fill="#ff6666" fill-opacity="0.7" text-anchor="middle" letter-spacing="1">PANIC</text>
+
+  <text x="75" y="367" font-family="monospace" font-size="7" font-weight="bold" fill="#00ffcc" fill-opacity="0.6" text-anchor="middle" letter-spacing="0.5">M I D I  &amp;  A U D I O</text>
+</svg>

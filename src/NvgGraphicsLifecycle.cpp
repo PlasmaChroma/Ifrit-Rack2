@@ -1,4 +1,4 @@
-#include "plugin.hpp"
+#include "ifrit_plugin.hpp"
 #include "NvgGraphicsLifecycle.hpp"
 
 namespace nvg_gfx_lifecycle {
