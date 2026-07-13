@@ -251,14 +251,14 @@ struct VstFxWidget : ModuleWidget {
         setPanel(createPanel(asset::plugin(pluginInstance, "res/VstFx.svg")));
 
         // Identity display & Editor eye
-        PluginIdentityDisplay* display = new PluginIdentityDisplay(&module->controller);
+        PluginIdentityDisplay* display = new PluginIdentityDisplay(module ? &module->controller : nullptr);
         display->box.pos = Vec(15, 20);
         display->onOpenBrowser = [this]() {
             this->openBrowser();
         };
         addChild(display);
 
-        PluginEditorEyeButton* eye = new PluginEditorEyeButton(&module->controller);
+        PluginEditorEyeButton* eye = new PluginEditorEyeButton(module ? &module->controller : nullptr);
         eye->box.pos = Vec(112, 27);
         addChild(eye);
 
@@ -275,13 +275,13 @@ struct VstFxWidget : ModuleWidget {
         for (int i = 0; i < 8; ++i) {
             // Column 1 (Left)
             addInput(createInputCentered<PJ301MPort>(Vec(25, 105 + i * 28), module, VstFxModule::PARAM_CV_INPUT_1 + i));
-            PluginParameterSlotWidget* slot1 = new PluginParameterSlotWidget(&module->controller, i);
+            PluginParameterSlotWidget* slot1 = new PluginParameterSlotWidget(module ? &module->controller : nullptr, i);
             slot1->box.pos = Vec(15, 115 + i * 28);
             addChild(slot1);
 
             // Column 2 (Right)
             addInput(createInputCentered<PJ301MPort>(Vec(95, 105 + i * 28), module, VstFxModule::PARAM_CV_INPUT_1 + 8 + i));
-            PluginParameterSlotWidget* slot2 = new PluginParameterSlotWidget(&module->controller, 8 + i);
+            PluginParameterSlotWidget* slot2 = new PluginParameterSlotWidget(module ? &module->controller : nullptr, 8 + i);
             slot2->box.pos = Vec(85, 115 + i * 28);
             addChild(slot2);
         }

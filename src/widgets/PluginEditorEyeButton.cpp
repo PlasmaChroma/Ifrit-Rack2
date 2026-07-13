@@ -10,9 +10,14 @@ PluginEditorEyeButton::PluginEditorEyeButton(PluginHostController* ctrl) : contr
 }
 
 void PluginEditorEyeButton::draw(const DrawArgs& args) {
-    bool loaded = controller->isLoaded();
-    bool hasEd = controller->hasEditor();
-    bool open = controller->isEditorOpen();
+    bool loaded = false;
+    bool hasEd = false;
+    bool open = false;
+    if (controller) {
+        loaded = controller->isLoaded();
+        hasEd = controller->hasEditor();
+        open = controller->isEditorOpen();
+    }
 
     NVGcolor eyeColor;
     if (!loaded || !hasEd) {
@@ -60,6 +65,7 @@ void PluginEditorEyeButton::draw(const DrawArgs& args) {
 
 void PluginEditorEyeButton::onButton(const ButtonEvent& e) {
     OpaqueWidget::onButton(e);
+    if (!controller) return;
     if (e.action != GLFW_PRESS || e.button != GLFW_MOUSE_BUTTON_LEFT) {
         return;
     }

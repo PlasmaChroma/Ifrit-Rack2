@@ -9,8 +9,12 @@ PluginIdentityDisplay::PluginIdentityDisplay(PluginHostController* ctrl) : contr
 }
 
 void PluginIdentityDisplay::draw(const DrawArgs& args) {
-    bool loaded = controller->isLoaded();
-    bool transitioning = controller->isTransitioning();
+    bool loaded = false;
+    bool transitioning = false;
+    if (controller) {
+        loaded = controller->isLoaded();
+        transitioning = controller->isTransitioning();
+    }
 
     std::string nameText = "NO PLUGIN";
     std::string subtitleText = "CLICK TO LOAD";
@@ -18,7 +22,7 @@ void PluginIdentityDisplay::draw(const DrawArgs& args) {
     if (transitioning) {
         nameText = "LOADING...";
         subtitleText = "PLEASE WAIT";
-    } else if (loaded) {
+    } else if (loaded && controller) {
         auto* inst = controller->getActiveInstance();
         if (inst) {
             nameText = inst->descriptor.name;
@@ -69,6 +73,7 @@ void PluginIdentityDisplay::draw(const DrawArgs& args) {
 
 void PluginIdentityDisplay::onButton(const ButtonEvent& e) {
     OpaqueWidget::onButton(e);
+    if (!controller) return;
     if (e.action != GLFW_PRESS) {
         return;
     }

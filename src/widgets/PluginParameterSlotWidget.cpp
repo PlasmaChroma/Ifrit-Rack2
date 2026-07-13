@@ -18,21 +18,25 @@ void PluginParameterSlotWidget::step() {
 }
 
 void PluginParameterSlotWidget::draw(const DrawArgs& args) {
-    ParameterMapping& map = controller->getMapping(slotIndex);
-    bool learning = (controller->getLearnSlot() == slotIndex);
-
+    bool assigned = false;
+    bool learning = false;
     std::string labelText = "---";
     NVGcolor textColor = nvgRGBA(140, 150, 160, 160);
 
-    if (learning) {
-        labelText = "LEARN";
-        textColor = nvgRGBA(0, 255, 204, 255);
-    } else if (map.assigned) {
-        labelText = map.cachedShortTitle;
-        if (labelText.empty()) {
-            labelText = map.cachedTitle;
+    if (controller) {
+        ParameterMapping& map = controller->getMapping(slotIndex);
+        learning = (controller->getLearnSlot() == slotIndex);
+        assigned = map.assigned;
+        if (learning) {
+            labelText = "LEARN";
+            textColor = nvgRGBA(0, 255, 204, 255);
+        } else if (assigned) {
+            labelText = map.cachedShortTitle;
+            if (labelText.empty()) {
+                labelText = map.cachedTitle;
+            }
+            textColor = nvgRGBA(255, 255, 255, 220);
         }
-        textColor = nvgRGBA(255, 255, 255, 220);
     }
 
     // Limit label length for UI
@@ -61,8 +65,13 @@ PluginParameterSlotWidget::MapButton::MapButton(PluginHostController* ctrl, int 
 }
 
 void PluginParameterSlotWidget::MapButton::draw(const DrawArgs& args) {
-    ParameterMapping& map = controller->getMapping(slotIndex);
-    bool learning = (controller->getLearnSlot() == slotIndex);
+    bool assigned = false;
+    bool learning = false;
+    if (controller) {
+        ParameterMapping& map = controller->getMapping(slotIndex);
+        learning = (controller->getLearnSlot() == slotIndex);
+        assigned = map.assigned;
+    }
 
     NVGcolor color = nvgRGBA(60, 65, 70, 255); // unmapped dark grey
     bool drawPlus = true;
@@ -73,7 +82,7 @@ void PluginParameterSlotWidget::MapButton::draw(const DrawArgs& args) {
             color = nvgRGBA(0, 255, 204, 255); // flashing active cyan
         }
         drawPlus = false;
-    } else if (map.assigned) {
+    } else if (assigned) {
         color = nvgRGBA(0, 255, 204, 255); // solid mapped cyan
         drawPlus = false;
     }
@@ -89,7 +98,7 @@ void PluginParameterSlotWidget::MapButton::draw(const DrawArgs& args) {
     // Subtle outline
     nvgBeginPath(args.vg);
     nvgCircle(args.vg, box.size.x / 2.0f, box.size.y / 2.0f, 5.0f);
-    nvgStrokeColor(args.vg, map.assigned ? nvgRGBA(255, 255, 255, 100) : nvgRGBA(0, 0, 0, 80));
+    nvgStrokeColor(args.vg, assigned ? nvgRGBA(255, 255, 255, 100) : nvgRGBA(0, 0, 0, 80));
     nvgStrokeWidth(args.vg, 1.0f);
     nvgStroke(args.vg);
 
@@ -110,6 +119,7 @@ void PluginParameterSlotWidget::MapButton::draw(const DrawArgs& args) {
 
 void PluginParameterSlotWidget::MapButton::onButton(const ButtonEvent& e) {
     OpaqueWidget::onButton(e);
+    if (!controller) return;
     if (e.action != GLFW_PRESS) {
         return;
     }
