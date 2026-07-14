@@ -14,10 +14,12 @@ static std::string lowercase(std::string s) {
 PluginCatalog::PluginCatalog() {}
 
 void PluginCatalog::clear() {
+    std::lock_guard<std::mutex> lock(mutex);
     descriptors.clear();
 }
 
 void PluginCatalog::addDescriptor(const PluginDescriptor& desc) {
+    std::lock_guard<std::mutex> lock(mutex);
     // Prevent duplicates
     auto it = std::find_if(descriptors.begin(), descriptors.end(), [&](const PluginDescriptor& d) {
         return d.modulePath == desc.modulePath && d.classId == desc.classId;
@@ -27,6 +29,11 @@ void PluginCatalog::addDescriptor(const PluginDescriptor& desc) {
     } else {
         *it = desc; // update metadata
     }
+}
+
+size_t PluginCatalog::size() const {
+    std::lock_guard<std::mutex> lock(mutex);
+    return descriptors.size();
 }
 
 bool PluginCatalog::loadFromFile(const std::string& path) {
@@ -92,6 +99,7 @@ bool PluginCatalog::loadFromFile(const std::string& path) {
 }
 
 bool PluginCatalog::saveToFile(const std::string& path) {
+    std::lock_guard<std::mutex> lock(mutex);
     json_t* root = json_object();
     json_t* array = json_array();
 
@@ -121,6 +129,7 @@ bool PluginCatalog::saveToFile(const std::string& path) {
 }
 
 std::vector<PluginDescriptor> PluginCatalog::search(const std::string& query, bool effectsOnly, bool instrumentsOnly) const {
+    std::lock_guard<std::mutex> lock(mutex);
     std::vector<PluginDescriptor> results;
     std::string lq = lowercase(query);
 

@@ -132,11 +132,25 @@ PluginBrowserOverlay::PluginBrowserOverlay(PluginHostController* ctrl, bool inst
 
     container = scrollWidget->container;
 
+    // Discovery runs asynchronously because loading third-party VST3 bundles
+    // can be slow. The list is rebuilt when it completes in step().
+    // Keep an in-flight scan alive when the browser is closed/reopened. Joining
+    // it here would stall Rack's UI if a third-party plugin is slow to load.
+    if (!controller->getScanner().isScanning()) {
+        controller->startScan();
+    }
+    scanWasActive = controller->getScanner().isScanning();
     rebuildList();
 }
 
 void PluginBrowserOverlay::step() {
     OpaqueWidget::step();
+
+    const bool scanning = controller->getScanner().isScanning();
+    if (scanWasActive && !scanning) {
+        rebuildList();
+    }
+    scanWasActive = scanning;
 }
 
 void PluginBrowserOverlay::draw(const DrawArgs& args) {
@@ -154,6 +168,17 @@ void PluginBrowserOverlay::draw(const DrawArgs& args) {
     nvgStrokeColor(args.vg, nvgRGBA(0, 255, 204, 100));
     nvgStrokeWidth(args.vg, 1.2f);
     nvgStroke(args.vg);
+
+    nvgFontFaceId(args.vg, APP->window->uiFont->handle);
+    nvgFontSize(args.vg, 8.0f);
+    nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+    const bool scanning = controller && controller->getScanner().isScanning();
+    const size_t count = controller ? controller->getCatalog().size() : 0;
+    const std::string status = scanning
+        ? "Scanning VST3 plugins..."
+        : (count == 0 ? "No VST3 plugins found" : std::to_string(count) + " plugins found");
+    nvgFillColor(args.vg, scanning ? nvgRGBA(0, 255, 204, 190) : nvgRGBA(160, 175, 185, 180));
+    nvgText(args.vg, box.size.x / 2.0f, box.size.y - 18.0f, status.c_str(), nullptr);
 
     nvgRestore(args.vg);
 

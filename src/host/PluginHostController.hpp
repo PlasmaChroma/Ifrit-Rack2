@@ -24,11 +24,9 @@ public:
     // Asynchronous Loading/Unloading
     void loadPluginAsync(const PluginDescriptor& desc);
     void unloadPluginAsync();
-    bool isLoaded() const { return activeInstance.load() != nullptr; }
+    bool isLoaded() const;
     bool isTransitioning() const { return loading.load(); }
-
-    // Direct access to active instance (realtime safe)
-    HostedPluginInstance* getActiveInstance() const { return activeInstance.load(std::memory_order_acquire); }
+    bool getActiveDescriptor(PluginDescriptor& descriptor) const;
 
     // Audio thread block processing (realtime safe)
     bool processAudio(PluginProcessBlock& block);
@@ -60,8 +58,11 @@ private:
     void retireInstance(HostedPluginInstance* instance);
     void onPluginParameterEdited(uint32_t paramId, double valueNormalized);
 
-    std::atomic<HostedPluginInstance*> activeInstance;
+    HostedPluginInstance* activeInstance = nullptr;
+    mutable std::mutex instanceMutex;
     std::atomic<bool> loading;
+    std::thread lifecycleThread;
+    std::mutex lifecycleMutex;
 
     PluginCatalog catalog;
     PluginScanner scanner;

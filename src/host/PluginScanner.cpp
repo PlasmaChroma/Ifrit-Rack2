@@ -63,6 +63,8 @@ void PluginScanner::startScan(const std::vector<std::string>& customDirectories)
 }
 
 void PluginScanner::scanLoop(const std::vector<std::string>& customDirectories) {
+    catalog.clear();
+
     // 1. Gather all directories to scan
     std::vector<std::string> dirs;
     

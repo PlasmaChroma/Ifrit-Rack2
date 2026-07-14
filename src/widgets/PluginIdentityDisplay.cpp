@@ -24,10 +24,10 @@ void PluginIdentityDisplay::draw(const DrawArgs& args) {
         nameText = "LOADING...";
         subtitleText = "PLEASE WAIT";
     } else if (loaded && controller) {
-        auto* inst = controller->getActiveInstance();
-        if (inst) {
-            nameText = inst->descriptor.name;
-            subtitleText = inst->descriptor.vendor + " · VST3";
+        PluginDescriptor descriptor;
+        if (controller->getActiveDescriptor(descriptor)) {
+            nameText = descriptor.name;
+            subtitleText = descriptor.vendor + " · VST3";
         }
     }
 

@@ -230,13 +230,13 @@ struct VstInstrumentModule : Module {
 
         // Save active plugin metadata
         json_t* pluginJ = json_object();
-        auto* inst = controller.getActiveInstance();
-        if (inst) {
+        PluginDescriptor activeDescriptor;
+        if (controller.getActiveDescriptor(activeDescriptor)) {
             json_object_set_new(pluginJ, "loaded", json_boolean(true));
-            json_object_set_new(pluginJ, "name", json_string(inst->descriptor.name.c_str()));
-            json_object_set_new(pluginJ, "vendor", json_string(inst->descriptor.vendor.c_str()));
-            json_object_set_new(pluginJ, "modulePath", json_string(inst->descriptor.modulePath.c_str()));
-            json_object_set_new(pluginJ, "classId", json_string(inst->descriptor.classId.c_str()));
+            json_object_set_new(pluginJ, "name", json_string(activeDescriptor.name.c_str()));
+            json_object_set_new(pluginJ, "vendor", json_string(activeDescriptor.vendor.c_str()));
+            json_object_set_new(pluginJ, "modulePath", json_string(activeDescriptor.modulePath.c_str()));
+            json_object_set_new(pluginJ, "classId", json_string(activeDescriptor.classId.c_str()));
         } else {
             json_object_set_new(pluginJ, "loaded", json_boolean(false));
         }

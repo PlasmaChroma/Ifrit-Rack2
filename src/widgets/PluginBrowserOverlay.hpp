@@ -46,6 +46,7 @@ private:
     rack::ui::ScrollWidget* scrollWidget;
     rack::widget::Widget* container;
     std::string currentQuery;
+    bool scanWasActive = false;
 };
 
 } // namespace ifrit

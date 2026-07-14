@@ -6,7 +6,6 @@
 namespace ifrit {
 
 PluginHostController::PluginHostController() : scanner(catalog) {
-    activeInstance = nullptr;
     loading = false;
     learnSlotIndex = -1;
 
@@ -17,7 +16,12 @@ PluginHostController::PluginHostController() : scanner(catalog) {
 }
 
 PluginHostController::~PluginHostController() {
-    HostedPluginInstance* inst = activeInstance.exchange(nullptr);
+    if (lifecycleThread.joinable()) {
+        lifecycleThread.join();
+    }
+    std::lock_guard<std::mutex> lock(instanceMutex);
+    HostedPluginInstance* inst = activeInstance;
+    activeInstance = nullptr;
     if (inst) {
         delete inst;
     }
@@ -28,10 +32,12 @@ void PluginHostController::startScan(const std::vector<std::string>& customDirec
 }
 
 void PluginHostController::loadPluginAsync(const PluginDescriptor& desc) {
+    std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex);
     if (loading.load()) return;
+    if (lifecycleThread.joinable()) lifecycleThread.join();
     loading = true;
 
-    std::thread([this, desc]() {
+    lifecycleThread = std::thread([this, desc]() {
         HostedPluginInstance* newInstance = new HostedPluginInstance(desc);
         PluginLoadResult res = newInstance->backend->load(desc);
         
@@ -49,36 +55,52 @@ void PluginHostController::loadPluginAsync(const PluginDescriptor& desc) {
             );
         }
 
-        // We can write Vst3Backend changes later. For now, let's write the swap logic:
-        HostedPluginInstance* oldInstance = activeInstance.exchange(newInstance, std::memory_order_release);
-        if (oldInstance) {
+        if (res == PluginLoadResult::Ok) {
+            std::lock_guard<std::mutex> lock(instanceMutex);
+            HostedPluginInstance* oldInstance = activeInstance;
+            activeInstance = newInstance;
             retireInstance(oldInstance);
+        } else {
+            delete newInstance;
         }
         loading = false;
-    }).detach();
+    });
 }
 
 void PluginHostController::unloadPluginAsync() {
+    std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex);
     if (loading.load()) return;
+    if (lifecycleThread.joinable()) lifecycleThread.join();
     loading = true;
 
-    std::thread([this]() {
-        HostedPluginInstance* oldInstance = activeInstance.exchange(nullptr, std::memory_order_release);
-        if (oldInstance) {
-            retireInstance(oldInstance);
-        }
+    lifecycleThread = std::thread([this]() {
+        std::lock_guard<std::mutex> lock(instanceMutex);
+        HostedPluginInstance* oldInstance = activeInstance;
+        activeInstance = nullptr;
+        retireInstance(oldInstance);
         loading = false;
-    }).detach();
+    });
 }
 
 void PluginHostController::retireInstance(HostedPluginInstance* instance) {
-    // Sleep for 50ms to allow audio thread to finish its active block
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
     delete instance;
 }
 
+bool PluginHostController::isLoaded() const {
+    std::lock_guard<std::mutex> lock(instanceMutex);
+    return activeInstance != nullptr;
+}
+
+bool PluginHostController::getActiveDescriptor(PluginDescriptor& descriptor) const {
+    std::lock_guard<std::mutex> lock(instanceMutex);
+    if (!activeInstance) return false;
+    descriptor = activeInstance->descriptor;
+    return true;
+}
+
 bool PluginHostController::processAudio(PluginProcessBlock& block) {
-    HostedPluginInstance* inst = activeInstance.load(std::memory_order_acquire);
+    std::lock_guard<std::mutex> lock(instanceMutex);
+    HostedPluginInstance* inst = activeInstance;
     if (!inst || !inst->backend->isLoaded()) {
         return false; // Passthrough or silence handled by the module
     }
@@ -109,7 +131,8 @@ void PluginHostController::clearMapping(int slotIndex) {
 void PluginHostController::onPluginParameterEdited(uint32_t paramId, double valueNormalized) {
     int slot = learnSlotIndex.load();
     if (slot >= 0 && slot < 16) {
-        HostedPluginInstance* inst = activeInstance.load(std::memory_order_acquire);
+            std::lock_guard<std::mutex> lock(instanceMutex);
+            HostedPluginInstance* inst = activeInstance;
         if (inst) {
             auto params = inst->backend->parameters();
             for (const auto& p : params) {
@@ -133,7 +156,8 @@ void PluginHostController::onPluginParameterEdited(uint32_t paramId, double valu
 void PluginHostController::updateAutomation(int slotIndex, float voltage, int32_t sampleOffset) {
     if (!mappings[slotIndex].assigned) return;
 
-    HostedPluginInstance* inst = activeInstance.load(std::memory_order_acquire);
+        std::lock_guard<std::mutex> lock(instanceMutex);
+        HostedPluginInstance* inst = activeInstance;
     if (inst) {
         double val = (double)voltage / 10.0;
         if (val < 0.0) val = 0.0;
@@ -151,7 +175,8 @@ void PluginHostController::updateAutomation(int slotIndex, float voltage, int32_
 
 PluginStateBlob PluginHostController::captureState() {
     std::lock_guard<std::mutex> lock(stateMutex);
-    HostedPluginInstance* inst = activeInstance.load(std::memory_order_acquire);
+    std::lock_guard<std::mutex> instanceLock(instanceMutex);
+    HostedPluginInstance* inst = activeInstance;
     if (inst) {
         return inst->backend->captureState();
     }
@@ -160,38 +185,44 @@ PluginStateBlob PluginHostController::captureState() {
 
 void PluginHostController::restoreState(const PluginStateBlob& state) {
     std::lock_guard<std::mutex> lock(stateMutex);
-    HostedPluginInstance* inst = activeInstance.load(std::memory_order_acquire);
+    std::lock_guard<std::mutex> instanceLock(instanceMutex);
+    HostedPluginInstance* inst = activeInstance;
     if (inst) {
         inst->backend->restoreState(state);
     }
 }
 
 bool PluginHostController::hasEditor() const {
-    HostedPluginInstance* inst = activeInstance.load(std::memory_order_acquire);
+    std::lock_guard<std::mutex> lock(instanceMutex);
+    HostedPluginInstance* inst = activeInstance;
     return inst ? inst->backend->hasNativeEditor() : false;
 }
 
 void PluginHostController::openEditor(void* parentWindowHandle, int x, int y, int width, int height) {
-    HostedPluginInstance* inst = activeInstance.load(std::memory_order_acquire);
+    std::lock_guard<std::mutex> lock(instanceMutex);
+    HostedPluginInstance* inst = activeInstance;
     if (inst) {
         inst->backend->openEditor(parentWindowHandle, x, y, width, height);
     }
 }
 
 void PluginHostController::closeEditor() {
-    HostedPluginInstance* inst = activeInstance.load(std::memory_order_acquire);
+    std::lock_guard<std::mutex> lock(instanceMutex);
+    HostedPluginInstance* inst = activeInstance;
     if (inst) {
         inst->backend->closeEditor();
     }
 }
 
 bool PluginHostController::isEditorOpen() const {
-    HostedPluginInstance* inst = activeInstance.load(std::memory_order_acquire);
+    std::lock_guard<std::mutex> lock(instanceMutex);
+    HostedPluginInstance* inst = activeInstance;
     return inst ? inst->backend->isEditorVisible() : false;
 }
 
 void PluginHostController::stepUI() {
-    HostedPluginInstance* inst = activeInstance.load(std::memory_order_acquire);
+    std::lock_guard<std::mutex> lock(instanceMutex);
+    HostedPluginInstance* inst = activeInstance;
     if (inst) {
         inst->backend->stepUI();
     }

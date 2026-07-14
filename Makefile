@@ -18,6 +18,10 @@ SOURCES += dep/vst3sdk/public.sdk/source/vst/vstinitiids.cpp
 SOURCES += dep/vst3sdk/public.sdk/source/common/commoniids.cpp
 SOURCES += $(wildcard src/doom/*.c)
 
+# Rack loads panel SVGs from the installed plugin directory at runtime. Include
+# all panel assets in the distributable archive, not only plugin.json.
+DISTRIBUTABLES += res
+
 
 # Include the Rack plugin Makefile framework
 include $(RACK_DIR)/plugin.mk
