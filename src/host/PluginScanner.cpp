@@ -163,11 +163,20 @@ void PluginScanner::scanPluginFile(const std::string& path) {
     }
 
     // 2. Get Factory
-    using GetFactoryFunc = Steinberg::IPluginFactory* (*)();
+    using GetFactoryFunc = Steinberg::IPluginFactory* (PLUGIN_API*)();
 #if defined(_WIN32)
-    GetFactoryFunc getFactory = (GetFactoryFunc)GetProcAddress(handle, "GetPluginFactory");
+    // GetProcAddress returns FARPROC; the SDK's PLUGIN_API keeps the VST3
+    // factory function's calling convention correct on Windows.
+    #if defined(__GNUC__)
+        #pragma GCC diagnostic push
+        #pragma GCC diagnostic ignored "-Wcast-function-type"
+    #endif
+    GetFactoryFunc getFactory = reinterpret_cast<GetFactoryFunc>(GetProcAddress(handle, "GetPluginFactory"));
+    #if defined(__GNUC__)
+        #pragma GCC diagnostic pop
+    #endif
 #else
-    GetFactoryFunc getFactory = (GetFactoryFunc)dlsym(handle, "GetPluginFactory");
+    GetFactoryFunc getFactory = reinterpret_cast<GetFactoryFunc>(dlsym(handle, "GetPluginFactory"));
 #endif
     if (!getFactory) {
 #if defined(_WIN32)

@@ -6,10 +6,6 @@ FLAGS += -I dep/vst3sdk -I src
 CFLAGS +=
 CXXFLAGS +=
 
-# Careful about linking to shared libraries, since you can't assume much about the user's environment and library search path.
-# Static libraries are fine, but they should be added to this plugin's build system.
-LDFLAGS += -ldl -lX11
-
 # Add .cpp files to the build
 SOURCES += $(wildcard src/*.cpp)
 SOURCES += $(wildcard src/host/*.cpp)
@@ -25,6 +21,17 @@ SOURCES += $(wildcard src/doom/*.c)
 
 # Include the Rack plugin Makefile framework
 include $(RACK_DIR)/plugin.mk
+
+# The VST3 loader and native editor use POSIX dlopen/X11 only on Linux. Windows
+# uses LoadLibrary and HWND, so these libraries must not be passed to MinGW.
+ifdef ARCH_LIN
+LDFLAGS += -ldl -lX11
+endif
+
+# Steinberg's FUID implementation uses CoCreateGuid on Windows.
+ifdef ARCH_WIN
+LDFLAGS += -lole32
+endif
 
 # Force C++17 to support std::filesystem
 CXXFLAGS += -std=c++17

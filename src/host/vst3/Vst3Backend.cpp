@@ -1,6 +1,10 @@
 #include "Vst3Backend.hpp"
 #include "Vst3StateStream.hpp"
-#include <dlfcn.h>
+#if defined(_WIN32)
+    #include <windows.h>
+#else
+    #include <dlfcn.h>
+#endif
 #include <iostream>
 #include <sstream>
 #include <iomanip>
@@ -31,7 +35,9 @@ Vst3Backend::Vst3Backend() {
     paramChanges = new Vst3ParameterChanges();
     eventList = new Vst3EventList();
 
+#if !defined(_WIN32)
     xDisplay = nullptr;
+#endif
     xWindow = 0;
     editorOpen = false;
 }
@@ -74,11 +80,20 @@ PluginLoadResult Vst3Backend::load(const PluginDescriptor& descriptor) {
 #endif
 
     // 2. Get Factory Function
-    using GetFactoryFunc = Steinberg::IPluginFactory* (*)();
+    using GetFactoryFunc = Steinberg::IPluginFactory* (PLUGIN_API*)();
 #if defined(_WIN32)
-    GetFactoryFunc getFactory = (GetFactoryFunc)GetProcAddress(moduleHandle, "GetPluginFactory");
+    // GetProcAddress necessarily returns FARPROC. The VST3 SDK declares this
+    // exported function with PLUGIN_API, which preserves the Windows ABI.
+    #if defined(__GNUC__)
+        #pragma GCC diagnostic push
+        #pragma GCC diagnostic ignored "-Wcast-function-type"
+    #endif
+    GetFactoryFunc getFactory = reinterpret_cast<GetFactoryFunc>(GetProcAddress(moduleHandle, "GetPluginFactory"));
+    #if defined(__GNUC__)
+        #pragma GCC diagnostic pop
+    #endif
 #else
-    GetFactoryFunc getFactory = (GetFactoryFunc)dlsym(moduleHandle, "GetPluginFactory");
+    GetFactoryFunc getFactory = reinterpret_cast<GetFactoryFunc>(dlsym(moduleHandle, "GetPluginFactory"));
 #endif
     if (!getFactory) {
         std::cerr << "[Vst3Backend] GetPluginFactory symbol not found." << std::endl;
@@ -257,16 +272,14 @@ bool Vst3Backend::configure(double sampleRate, uint32_t maxBlockSize) {
 bool Vst3Backend::process(PluginProcessBlock& block) {
     if (!loaded || !processor) return false;
 
-    Steinberg::Vst::ProcessData data;
-    std::memset(&data, 0, sizeof(data));
+    Steinberg::Vst::ProcessData data{};
 
     data.processMode = Steinberg::Vst::kRealtime;
     data.symbolicSampleSize = Steinberg::Vst::kSample32;
     data.numSamples = block.numSamples;
 
     // Create process context
-    Steinberg::Vst::ProcessContext context;
-    std::memset(&context, 0, sizeof(context));
+    Steinberg::Vst::ProcessContext context{};
     context.sampleRate = currentSampleRate;
     context.projectTimeSamples = 0;
     context.tempo = 120.0;
@@ -276,7 +289,7 @@ bool Vst3Backend::process(PluginProcessBlock& block) {
     data.processContext = &context;
 
     // Audio Inputs
-    Steinberg::Vst::AudioBusBuffers inBus;
+    Steinberg::Vst::AudioBusBuffers inBus{};
     if (block.numInputChannels > 0 && block.inputBuffers) {
         inBus.numChannels = block.numInputChannels;
         inBus.silenceFlags = 0;
@@ -286,7 +299,7 @@ bool Vst3Backend::process(PluginProcessBlock& block) {
     }
 
     // Audio Outputs
-    Steinberg::Vst::AudioBusBuffers outBus;
+    Steinberg::Vst::AudioBusBuffers outBus{};
     if (block.numOutputChannels > 0 && block.outputBuffers) {
         outBus.numChannels = block.numOutputChannels;
         outBus.silenceFlags = 0;
@@ -563,4 +576,3 @@ void Vst3Backend::setParameterEditCallbacks(ParameterEditCallback onBegin, Param
 }
 
 } // namespace ifrit
-
