@@ -9,6 +9,7 @@
 #include <sstream>
 #include <iomanip>
 #include <cstring>
+#include <logger.hpp>
 #include "pluginterfaces/base/ipluginbase.h"
 #include "pluginterfaces/vst/ivstcomponent.h"
 #include "pluginterfaces/vst/ivstmessage.h"
@@ -42,6 +43,47 @@ ATOM ensureVst3EditorWindowClass() {
     }();
     return windowClass;
 }
+
+class Vst3EditorFrame final : public Steinberg::IPlugFrame {
+public:
+    explicit Vst3EditorFrame(HWND window) : window(window) {}
+
+    Steinberg::tresult PLUGIN_API queryInterface(const Steinberg::TUID iid, void** obj) override {
+        if (Steinberg::FUnknownPrivate::iidEqual(iid, Steinberg::IPlugFrame::iid.toTUID()) ||
+            Steinberg::FUnknownPrivate::iidEqual(iid, Steinberg::FUnknown::iid.toTUID())) {
+            *obj = this;
+            addRef();
+            return Steinberg::kResultOk;
+        }
+        *obj = nullptr;
+        return Steinberg::kNoInterface;
+    }
+
+    Steinberg::uint32 PLUGIN_API addRef() override { return ++refCount; }
+    Steinberg::uint32 PLUGIN_API release() override {
+        const auto count = --refCount;
+        if (count == 0) delete this;
+        return count;
+    }
+
+    Steinberg::tresult PLUGIN_API resizeView(Steinberg::IPlugView* plugView, Steinberg::ViewRect* size) override {
+        if (!window || !plugView || !size) return Steinberg::kInvalidArgument;
+
+        RECT outer{};
+        RECT client{};
+        GetWindowRect(window, &outer);
+        GetClientRect(window, &client);
+        const int frameWidth = (outer.right - outer.left) - (client.right - client.left);
+        const int frameHeight = (outer.bottom - outer.top) - (client.bottom - client.top);
+        SetWindowPos(window, nullptr, 0, 0, size->getWidth() + frameWidth,
+                     size->getHeight() + frameHeight, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+        return plugView->onSize(size);
+    }
+
+private:
+    std::atomic<Steinberg::uint32> refCount{1};
+    HWND window = nullptr;
+};
 } // namespace
 #endif
 
@@ -83,8 +125,10 @@ void Vst3Backend::clearPointers() {
     component = nullptr;
     processor = nullptr;
     controller = nullptr;
+    controllerIsComponent = false;
     componentHandler = nullptr;
     view = nullptr;
+    editorFrame = nullptr;
     editorAvailable = false;
 }
 
@@ -189,7 +233,22 @@ PluginLoadResult Vst3Backend::load(const PluginDescriptor& descriptor) {
                 // Setup Component Handler for parameter changes
                 componentHandler = new Vst3ComponentHandler();
                 controller->setComponentHandler(componentHandler);
+            } else {
+                controller->release();
+                controller = nullptr;
             }
+        }
+    }
+
+    // Some VST3s implement IEditController directly on the component instead
+    // of exposing a separate controller class. Support that standard form so
+    // their editor is available to the Rack module as well.
+    if (!controller) {
+        component->queryInterface(Steinberg::Vst::IEditController::iid, (void**)&controller);
+        if (controller) {
+            controllerIsComponent = true;
+            componentHandler = new Vst3ComponentHandler();
+            controller->setComponentHandler(componentHandler);
         }
     }
 
@@ -230,7 +289,9 @@ void Vst3Backend::unload() {
             componentHandler->release();
             componentHandler = nullptr;
         }
-        controller->terminate();
+        if (!controllerIsComponent) {
+            controller->terminate();
+        }
         controller->release();
         controller = nullptr;
     }
@@ -498,17 +559,22 @@ EditorOpenResult Vst3Backend::openEditor(void* parentWindowHandle, int x, int y,
     if (!loaded || !controller) return EditorOpenResult::NoEditor;
     if (editorOpen) return EditorOpenResult::AlreadyOpen;
 
+    INFO("Ifrit VST3 editor: createView begin (%s)", pluginName.c_str());
     view = controller->createView(Steinberg::Vst::ViewType::kEditor);
+    INFO("Ifrit VST3 editor: createView end (%s, view=%p)", pluginName.c_str(), static_cast<void*>(view));
     if (!view) {
         return EditorOpenResult::NoEditor;
     }
 
 #if defined(_WIN32)
+    INFO("Ifrit VST3 editor: isPlatformTypeSupported begin (%s)", pluginName.c_str());
     if (view->isPlatformTypeSupported(Steinberg::kPlatformTypeHWND) != Steinberg::kResultOk) {
+        WARN("Ifrit VST3 editor: HWND platform rejected (%s)", pluginName.c_str());
         view->release();
         view = nullptr;
         return EditorOpenResult::PlatformError;
     }
+    INFO("Ifrit VST3 editor: isPlatformTypeSupported end (%s)", pluginName.c_str());
 
     HWND parent = static_cast<HWND>(parentWindowHandle);
     bool ownsWindow = false;
@@ -520,30 +586,45 @@ EditorOpenResult Vst3Backend::openEditor(void* parentWindowHandle, int x, int y,
         }
 
         Steinberg::ViewRect rect{};
+        INFO("Ifrit VST3 editor: getSize begin (%s)", pluginName.c_str());
         if (view->getSize(&rect) == Steinberg::kResultOk) {
-            width = std::max(width, static_cast<int>(rect.right - rect.left));
-            height = std::max(height, static_cast<int>(rect.bottom - rect.top));
+            width = std::max(1, static_cast<int>(rect.right - rect.left));
+            height = std::max(1, static_cast<int>(rect.bottom - rect.top));
         }
+        INFO("Ifrit VST3 editor: getSize end (%s, %dx%d)", pluginName.c_str(), width, height);
 
         RECT windowRect{0, 0, width, height};
         AdjustWindowRect(&windowRect, WS_OVERLAPPEDWINDOW, FALSE);
+        INFO("Ifrit VST3 editor: CreateWindowEx begin (%s)", pluginName.c_str());
         parent = CreateWindowExA(
             0, kVst3EditorWindowClass, pluginName.c_str(), WS_OVERLAPPEDWINDOW,
             x, y, windowRect.right - windowRect.left, windowRect.bottom - windowRect.top,
             nullptr, nullptr, GetModuleHandleA(nullptr), nullptr);
         if (!parent) {
+            WARN("Ifrit VST3 editor: CreateWindowEx failed (%s, error=%lu)", pluginName.c_str(), GetLastError());
             view->release();
             view = nullptr;
             return EditorOpenResult::PlatformError;
         }
+        INFO("Ifrit VST3 editor: CreateWindowEx end (%s, hwnd=%p)", pluginName.c_str(), static_cast<void*>(parent));
         SetWindowLongPtrA(parent, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
         xWindow = parent;
         ownsWindow = true;
+
+        // Match Steinberg's editorhost: the native parent is visible before
+        // setFrame()/attached() are invoked.
+        INFO("Ifrit VST3 editor: ShowWindow begin (%s)", pluginName.c_str());
+        ShowWindow(xWindow, SW_SHOW);
+        UpdateWindow(xWindow);
+        INFO("Ifrit VST3 editor: ShowWindow end (%s)", pluginName.c_str());
     }
 
-    // A VST3 editor needs a real HWND parent. Passing nullptr attaches nowhere,
-    // which is why the editor button previously opened an invisible window.
-    if (view->attached(parent, Steinberg::kPlatformTypeHWND) != Steinberg::kResultOk) {
+    editorFrame = new Vst3EditorFrame(parent);
+    INFO("Ifrit VST3 editor: setFrame begin (%s)", pluginName.c_str());
+    if (view->setFrame(editorFrame) != Steinberg::kResultOk) {
+        WARN("Ifrit VST3 editor: setFrame failed (%s)", pluginName.c_str());
+        editorFrame->release();
+        editorFrame = nullptr;
         if (ownsWindow) {
             DestroyWindow(xWindow);
             xWindow = nullptr;
@@ -552,10 +633,25 @@ EditorOpenResult Vst3Backend::openEditor(void* parentWindowHandle, int x, int y,
         view = nullptr;
         return EditorOpenResult::PlatformError;
     }
-    if (ownsWindow) {
-        ShowWindow(xWindow, SW_SHOW);
-        UpdateWindow(xWindow);
+    INFO("Ifrit VST3 editor: setFrame end (%s)", pluginName.c_str());
+
+    // A VST3 editor needs a real HWND parent. Passing nullptr attaches nowhere,
+    // which is why the editor button previously opened an invisible window.
+    INFO("Ifrit VST3 editor: attached begin (%s)", pluginName.c_str());
+    if (view->attached(parent, Steinberg::kPlatformTypeHWND) != Steinberg::kResultOk) {
+        WARN("Ifrit VST3 editor: attached failed (%s)", pluginName.c_str());
+        view->setFrame(nullptr);
+        editorFrame->release();
+        editorFrame = nullptr;
+        if (ownsWindow) {
+            DestroyWindow(xWindow);
+            xWindow = nullptr;
+        }
+        view->release();
+        view = nullptr;
+        return EditorOpenResult::PlatformError;
     }
+    INFO("Ifrit VST3 editor: attached end (%s)", pluginName.c_str());
 #else
     if (view->isPlatformTypeSupported(Steinberg::kPlatformTypeX11EmbedWindowID) != Steinberg::kResultOk) {
         view->release();
@@ -604,9 +700,16 @@ EditorOpenResult Vst3Backend::openEditor(void* parentWindowHandle, int x, int y,
 void Vst3Backend::closeEditor() {
     if (!editorOpen || !view) return;
 
+    // Steinberg's editorhost clears the frame before removing the view.
+    view->setFrame(nullptr);
     view->removed();
     view->release();
     view = nullptr;
+
+    if (editorFrame) {
+        editorFrame->release();
+        editorFrame = nullptr;
+    }
 
 #if defined(_WIN32)
     if (xWindow) {

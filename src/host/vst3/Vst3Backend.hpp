@@ -15,6 +15,7 @@
 #include "pluginterfaces/vst/ivstcomponent.h"
 #include "pluginterfaces/vst/ivstaudioprocessor.h"
 #include "pluginterfaces/vst/ivsteditcontroller.h"
+#include "pluginterfaces/gui/iplugview.h"
 
 namespace ifrit {
 
@@ -72,8 +73,10 @@ private:
     Steinberg::Vst::IComponent* component;
     Steinberg::Vst::IAudioProcessor* processor;
     Steinberg::Vst::IEditController* controller;
+    bool controllerIsComponent = false;
     Vst3ComponentHandler* componentHandler;
     Steinberg::IPlugView* view;
+    Steinberg::IPlugFrame* editorFrame = nullptr;
     bool editorAvailable = false;
 
     double currentSampleRate;

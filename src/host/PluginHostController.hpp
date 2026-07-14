@@ -61,8 +61,14 @@ private:
     HostedPluginInstance* activeInstance = nullptr;
     mutable std::mutex instanceMutex;
     std::atomic<bool> loading;
-    std::thread lifecycleThread;
     std::mutex lifecycleMutex;
+    enum class PendingLifecycleOperation {
+        Idle,
+        Load,
+        Unload
+    };
+    PendingLifecycleOperation pendingLifecycleOperation = PendingLifecycleOperation::Idle;
+    PluginDescriptor pendingDescriptor;
 
     PluginCatalog catalog;
     PluginScanner scanner;

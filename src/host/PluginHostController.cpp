@@ -16,12 +16,12 @@ PluginHostController::PluginHostController() : scanner(catalog) {
 }
 
 PluginHostController::~PluginHostController() {
-    if (lifecycleThread.joinable()) {
-        lifecycleThread.join();
+    HostedPluginInstance* inst = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(instanceMutex);
+        inst = activeInstance;
+        activeInstance = nullptr;
     }
-    std::lock_guard<std::mutex> lock(instanceMutex);
-    HostedPluginInstance* inst = activeInstance;
-    activeInstance = nullptr;
     if (inst) {
         delete inst;
     }
@@ -34,52 +34,16 @@ void PluginHostController::startScan(const std::vector<std::string>& customDirec
 void PluginHostController::loadPluginAsync(const PluginDescriptor& desc) {
     std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex);
     if (loading.load()) return;
-    if (lifecycleThread.joinable()) lifecycleThread.join();
+    pendingDescriptor = desc;
+    pendingLifecycleOperation = PendingLifecycleOperation::Load;
     loading = true;
-
-    lifecycleThread = std::thread([this, desc]() {
-        HostedPluginInstance* newInstance = new HostedPluginInstance(desc);
-        PluginLoadResult res = newInstance->backend->load(desc);
-        
-        if (res == PluginLoadResult::Ok) {
-            // Initial configuration
-            newInstance->backend->configure(44100.0, 128);
-
-            // Hook up component handler for parameter learning
-            newInstance->backend->setParameterEditCallbacks(
-                nullptr,
-                [this](uint32_t paramId, double value) {
-                    this->onPluginParameterEdited(paramId, value);
-                },
-                nullptr
-            );
-        }
-
-        if (res == PluginLoadResult::Ok) {
-            std::lock_guard<std::mutex> lock(instanceMutex);
-            HostedPluginInstance* oldInstance = activeInstance;
-            activeInstance = newInstance;
-            retireInstance(oldInstance);
-        } else {
-            delete newInstance;
-        }
-        loading = false;
-    });
 }
 
 void PluginHostController::unloadPluginAsync() {
     std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex);
     if (loading.load()) return;
-    if (lifecycleThread.joinable()) lifecycleThread.join();
+    pendingLifecycleOperation = PendingLifecycleOperation::Unload;
     loading = true;
-
-    lifecycleThread = std::thread([this]() {
-        std::lock_guard<std::mutex> lock(instanceMutex);
-        HostedPluginInstance* oldInstance = activeInstance;
-        activeInstance = nullptr;
-        retireInstance(oldInstance);
-        loading = false;
-    });
 }
 
 void PluginHostController::retireInstance(HostedPluginInstance* instance) {
@@ -199,19 +163,36 @@ bool PluginHostController::hasEditor() const {
 }
 
 void PluginHostController::openEditor(void* parentWindowHandle, int x, int y, int width, int height) {
-    std::lock_guard<std::mutex> lock(instanceMutex);
-    HostedPluginInstance* inst = activeInstance;
+    // VST editors are allowed to synchronously invoke component callbacks from
+    // attached(). Do not hold instanceMutex across that call or those callbacks
+    // deadlock Rack's UI thread. loading also prevents concurrent unload.
+    bool expected = false;
+    if (!loading.compare_exchange_strong(expected, true)) return;
+
+    HostedPluginInstance* inst = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(instanceMutex);
+        inst = activeInstance;
+    }
     if (inst) {
         inst->backend->openEditor(parentWindowHandle, x, y, width, height);
     }
+    loading = false;
 }
 
 void PluginHostController::closeEditor() {
-    std::lock_guard<std::mutex> lock(instanceMutex);
-    HostedPluginInstance* inst = activeInstance;
+    bool expected = false;
+    if (!loading.compare_exchange_strong(expected, true)) return;
+
+    HostedPluginInstance* inst = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(instanceMutex);
+        inst = activeInstance;
+    }
     if (inst) {
         inst->backend->closeEditor();
     }
+    loading = false;
 }
 
 bool PluginHostController::isEditorOpen() const {
@@ -221,6 +202,54 @@ bool PluginHostController::isEditorOpen() const {
 }
 
 void PluginHostController::stepUI() {
+    // VST3 component/controller initialization and termination are main-thread
+    // operations. Execute requests here, on Rack's UI thread, so a later
+    // IPlugView::attached() runs on the same thread that owns the controller.
+    PendingLifecycleOperation operation = PendingLifecycleOperation::Idle;
+    PluginDescriptor descriptor;
+    {
+        std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex);
+        operation = pendingLifecycleOperation;
+        if (operation == PendingLifecycleOperation::Load) {
+            descriptor = pendingDescriptor;
+        }
+        pendingLifecycleOperation = PendingLifecycleOperation::Idle;
+    }
+
+    if (operation == PendingLifecycleOperation::Load) {
+        HostedPluginInstance* newInstance = new HostedPluginInstance(descriptor);
+        const PluginLoadResult result = newInstance->backend->load(descriptor);
+        if (result == PluginLoadResult::Ok && newInstance->backend->configure(44100.0, 128)) {
+            newInstance->backend->setParameterEditCallbacks(
+                nullptr,
+                [this](uint32_t paramId, double value) {
+                    this->onPluginParameterEdited(paramId, value);
+                },
+                nullptr
+            );
+
+            HostedPluginInstance* oldInstance = nullptr;
+            {
+                std::lock_guard<std::mutex> lock(instanceMutex);
+                oldInstance = activeInstance;
+                activeInstance = newInstance;
+            }
+            retireInstance(oldInstance);
+        } else {
+            delete newInstance;
+        }
+        loading = false;
+    } else if (operation == PendingLifecycleOperation::Unload) {
+        HostedPluginInstance* oldInstance = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(instanceMutex);
+            oldInstance = activeInstance;
+            activeInstance = nullptr;
+        }
+        retireInstance(oldInstance);
+        loading = false;
+    }
+
     std::lock_guard<std::mutex> lock(instanceMutex);
     HostedPluginInstance* inst = activeInstance;
     if (inst) {
