@@ -74,6 +74,7 @@ private:
     Steinberg::Vst::IEditController* controller;
     Vst3ComponentHandler* componentHandler;
     Steinberg::IPlugView* view;
+    bool editorAvailable = false;
 
     double currentSampleRate;
     uint32_t currentBlockSize;

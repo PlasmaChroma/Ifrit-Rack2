@@ -63,6 +63,34 @@ private:
     std::function<void()> callback;
 };
 
+// Explicitly closes the browser without changing the active plugin.
+class CancelPluginBrowserItem : public OpaqueWidget {
+public:
+    explicit CancelPluginBrowserItem(std::function<void()> onClick) : callback(onClick) {
+        box.size = Vec(110, 22);
+    }
+
+    void draw(const DrawArgs& args) override {
+        const bool hovered = APP->event->hoveredWidget == this;
+        nvgFontFaceId(args.vg, APP->window->uiFont->handle);
+        nvgFontSize(args.vg, 9.0f);
+        nvgTextAlign(args.vg, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
+        nvgFillColor(args.vg, hovered ? nvgRGBA(255, 255, 255, 245) : nvgRGBA(200, 210, 220, 200));
+        nvgText(args.vg, 6.0f, box.size.y / 2.0f, "[ Cancel ]", nullptr);
+    }
+
+    void onButton(const ButtonEvent& e) override {
+        OpaqueWidget::onButton(e);
+        if (e.action == GLFW_PRESS && e.button == GLFW_MOUSE_BUTTON_LEFT) {
+            if (callback) callback();
+            e.consume(this);
+        }
+    }
+
+private:
+    std::function<void()> callback;
+};
+
 // Unload Item Class
 class UnloadPluginItem : public OpaqueWidget {
 public:
@@ -190,13 +218,24 @@ void PluginBrowserOverlay::rebuildList() {
 
     float y = 2.0f;
 
-    // 1. Add Unload item at top
-    UnloadPluginItem* unloadItem = new UnloadPluginItem(controller, [this]() {
+    // 1. Cancel closes the browser and leaves the current plugin untouched.
+    CancelPluginBrowserItem* cancelItem = new CancelPluginBrowserItem([this]() {
         if (onClose) onClose();
     });
-    unloadItem->box.pos = Vec(0, y);
-    container->addChild(unloadItem);
+    cancelItem->box.pos = Vec(0, y);
+    container->addChild(cancelItem);
     y += 24.0f;
+
+    // Keep unload separate from cancel; it is only meaningful when something
+    // is already loaded.
+    if (controller->isLoaded()) {
+        UnloadPluginItem* unloadItem = new UnloadPluginItem(controller, [this]() {
+            if (onClose) onClose();
+        });
+        unloadItem->box.pos = Vec(0, y);
+        container->addChild(unloadItem);
+        y += 24.0f;
+    }
 
     // 2. Add filtered plugins from catalog
     // VST-FX scans effects; VST-Instrument scans instruments

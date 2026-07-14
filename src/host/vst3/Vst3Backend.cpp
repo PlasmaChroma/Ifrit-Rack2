@@ -16,6 +16,35 @@
 
 namespace ifrit {
 
+#if defined(_WIN32)
+namespace {
+constexpr char kVst3EditorWindowClass[] = "IfritVst3EditorWindow";
+
+LRESULT CALLBACK vst3EditorWindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
+    if (message == WM_CLOSE) {
+        auto* backend = reinterpret_cast<Vst3Backend*>(GetWindowLongPtrA(window, GWLP_USERDATA));
+        if (backend) {
+            backend->closeEditor();
+            return 0;
+        }
+    }
+    return DefWindowProcA(window, message, wParam, lParam);
+}
+
+ATOM ensureVst3EditorWindowClass() {
+    static const ATOM windowClass = []() {
+        WNDCLASSA wc{};
+        wc.lpfnWndProc = vst3EditorWindowProc;
+        wc.hInstance = GetModuleHandleA(nullptr);
+        wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+        wc.lpszClassName = kVst3EditorWindowClass;
+        return RegisterClassA(&wc);
+    }();
+    return windowClass;
+}
+} // namespace
+#endif
+
 // Helper to parse hex string into TUID
 static bool stringToTUID(const std::string& str, Steinberg::TUID tuid) {
     if (str.length() != 32) return false;
@@ -56,6 +85,7 @@ void Vst3Backend::clearPointers() {
     controller = nullptr;
     componentHandler = nullptr;
     view = nullptr;
+    editorAvailable = false;
 }
 
 PluginLoadResult Vst3Backend::load(const PluginDescriptor& descriptor) {
@@ -168,6 +198,10 @@ PluginLoadResult Vst3Backend::load(const PluginDescriptor& descriptor) {
     component->activateBus(Steinberg::Vst::kAudio, Steinberg::Vst::kInput, 0, true);
     component->activateBus(Steinberg::Vst::kAudio, Steinberg::Vst::kOutput, 0, true);
 
+    // Do not probe createView() here or from the UI draw loop. Several VST3
+    // implementations allocate editor state in createView() and are unstable
+    // when the host repeatedly creates/releases it just to test availability.
+    editorAvailable = controller != nullptr;
     loaded = true;
     return PluginLoadResult::Ok;
 }
@@ -457,13 +491,7 @@ bool Vst3Backend::restoreState(const PluginStateBlob& blob) {
 }
 
 bool Vst3Backend::hasNativeEditor() const {
-    if (!loaded || !controller) return false;
-    Steinberg::IPlugView* editorView = controller->createView(Steinberg::Vst::ViewType::kEditor);
-    if (editorView) {
-        editorView->release();
-        return true;
-    }
-    return false;
+    return loaded && controller && editorAvailable;
 }
 
 EditorOpenResult Vst3Backend::openEditor(void* parentWindowHandle, int x, int y, int width, int height) {
@@ -482,12 +510,51 @@ EditorOpenResult Vst3Backend::openEditor(void* parentWindowHandle, int x, int y,
         return EditorOpenResult::PlatformError;
     }
 
-    HWND parent = (HWND)parentWindowHandle;
-    // Attach View
-    if (view->attached((void*)parent, Steinberg::kPlatformTypeHWND) != Steinberg::kResultOk) {
+    HWND parent = static_cast<HWND>(parentWindowHandle);
+    bool ownsWindow = false;
+    if (!parent) {
+        if (!ensureVst3EditorWindowClass()) {
+            view->release();
+            view = nullptr;
+            return EditorOpenResult::PlatformError;
+        }
+
+        Steinberg::ViewRect rect{};
+        if (view->getSize(&rect) == Steinberg::kResultOk) {
+            width = std::max(width, static_cast<int>(rect.right - rect.left));
+            height = std::max(height, static_cast<int>(rect.bottom - rect.top));
+        }
+
+        RECT windowRect{0, 0, width, height};
+        AdjustWindowRect(&windowRect, WS_OVERLAPPEDWINDOW, FALSE);
+        parent = CreateWindowExA(
+            0, kVst3EditorWindowClass, pluginName.c_str(), WS_OVERLAPPEDWINDOW,
+            x, y, windowRect.right - windowRect.left, windowRect.bottom - windowRect.top,
+            nullptr, nullptr, GetModuleHandleA(nullptr), nullptr);
+        if (!parent) {
+            view->release();
+            view = nullptr;
+            return EditorOpenResult::PlatformError;
+        }
+        SetWindowLongPtrA(parent, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
+        xWindow = parent;
+        ownsWindow = true;
+    }
+
+    // A VST3 editor needs a real HWND parent. Passing nullptr attaches nowhere,
+    // which is why the editor button previously opened an invisible window.
+    if (view->attached(parent, Steinberg::kPlatformTypeHWND) != Steinberg::kResultOk) {
+        if (ownsWindow) {
+            DestroyWindow(xWindow);
+            xWindow = nullptr;
+        }
         view->release();
         view = nullptr;
         return EditorOpenResult::PlatformError;
+    }
+    if (ownsWindow) {
+        ShowWindow(xWindow, SW_SHOW);
+        UpdateWindow(xWindow);
     }
 #else
     if (view->isPlatformTypeSupported(Steinberg::kPlatformTypeX11EmbedWindowID) != Steinberg::kResultOk) {
@@ -541,7 +608,13 @@ void Vst3Backend::closeEditor() {
     view->release();
     view = nullptr;
 
-#if !defined(_WIN32)
+#if defined(_WIN32)
+    if (xWindow) {
+        SetWindowLongPtrA(xWindow, GWLP_USERDATA, 0);
+        DestroyWindow(xWindow);
+        xWindow = nullptr;
+    }
+#else
     if (xWindow) {
         XDestroyWindow(xDisplay, xWindow);
         xWindow = 0;
