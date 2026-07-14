@@ -19,10 +19,6 @@
   <!-- Subtle border highlight -->
   <rect x="0.5" y="0.5" width="209" height="379" rx="0" fill="none" stroke="url(#borderGrad)" stroke-width="1" />
 
-  <!-- Vertical design lines -->
-  <line x1="8" y1="0" x2="8" y2="380" stroke="#00ffcc" stroke-opacity="0.08" stroke-dasharray="2,2" />
-  <line x1="202" y1="0" x2="202" y2="380" stroke="#00ffcc" stroke-opacity="0.08" stroke-dasharray="2,2" />
-
   <!-- Static panel furniture. This is deliberately in the SVG so Rack's module
        browser preview reads as a complete module before dynamic widgets draw. -->
   <text x="105" y="13" font-family="sans-serif" font-size="7" font-weight="bold" fill="#d8fff7" text-anchor="middle" letter-spacing="2">VST FX</text>
@@ -33,17 +29,17 @@
   <circle cx="105" cy="75" r="9" fill="#10171c" stroke="#00ffcc" stroke-opacity=".35" />
   <line x1="105" y1="68" x2="105" y2="76" stroke="#d8fff7" stroke-opacity=".5" stroke-width="1.5" />
   <line x1="14" y1="99" x2="196" y2="99" stroke="#00ffcc" stroke-opacity=".22" />
-  <text x="22" y="99" font-family="monospace" font-size="5.5" fill="#6f858a" text-anchor="middle">CV</text>
-  <text x="117" y="99" font-family="monospace" font-size="5.5" fill="#6f858a" text-anchor="middle">CV</text>
+  <text x="18" y="99" font-family="monospace" font-size="5.5" fill="#6f858a" text-anchor="middle">CV</text>
+  <text x="123" y="99" font-family="monospace" font-size="5.5" fill="#6f858a" text-anchor="middle">CV</text>
   <g fill="#0b1116" stroke="#00ffcc" stroke-opacity=".15">
-    <rect x="42" y="102" width="58" height="22" rx="2"/><rect x="137" y="102" width="58" height="22" rx="2"/>
-    <rect x="42" y="130" width="58" height="22" rx="2"/><rect x="137" y="130" width="58" height="22" rx="2"/>
-    <rect x="42" y="158" width="58" height="22" rx="2"/><rect x="137" y="158" width="58" height="22" rx="2"/>
-    <rect x="42" y="186" width="58" height="22" rx="2"/><rect x="137" y="186" width="58" height="22" rx="2"/>
-    <rect x="42" y="214" width="58" height="22" rx="2"/><rect x="137" y="214" width="58" height="22" rx="2"/>
-    <rect x="42" y="242" width="58" height="22" rx="2"/><rect x="137" y="242" width="58" height="22" rx="2"/>
-    <rect x="42" y="270" width="58" height="22" rx="2"/><rect x="137" y="270" width="58" height="22" rx="2"/>
-    <rect x="42" y="298" width="58" height="22" rx="2"/><rect x="137" y="298" width="58" height="22" rx="2"/>
+    <rect x="35" y="102" width="67" height="22" rx="2"/><rect x="140" y="102" width="67" height="22" rx="2"/>
+    <rect x="35" y="130" width="67" height="22" rx="2"/><rect x="140" y="130" width="67" height="22" rx="2"/>
+    <rect x="35" y="158" width="67" height="22" rx="2"/><rect x="140" y="158" width="67" height="22" rx="2"/>
+    <rect x="35" y="186" width="67" height="22" rx="2"/><rect x="140" y="186" width="67" height="22" rx="2"/>
+    <rect x="35" y="214" width="67" height="22" rx="2"/><rect x="140" y="214" width="67" height="22" rx="2"/>
+    <rect x="35" y="242" width="67" height="22" rx="2"/><rect x="140" y="242" width="67" height="22" rx="2"/>
+    <rect x="35" y="270" width="67" height="22" rx="2"/><rect x="140" y="270" width="67" height="22" rx="2"/>
+    <rect x="35" y="298" width="67" height="22" rx="2"/><rect x="140" y="298" width="67" height="22" rx="2"/>
   </g>
   <line x1="14" y1="330" x2="196" y2="330" stroke="#00ffcc" stroke-opacity=".22" />
   <g fill="#10171c" stroke="#00ffcc" stroke-opacity=".22"><circle cx="30" cy="345" r="11"/><circle cx="75" cy="345" r="11"/><circle cx="135" cy="345" r="11"/><circle cx="180" cy="345" r="11"/></g>

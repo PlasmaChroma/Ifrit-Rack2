@@ -275,15 +275,15 @@ struct VstFxWidget : ModuleWidget {
         // Mapping slots grid (2 columns of 8 rows)
         for (int i = 0; i < 8; ++i) {
             // Column 1 (Left)
-            addInput(createInputCentered<PJ301MPort>(Vec(22, 113 + i * 28), module, VstFxModule::PARAM_CV_INPUT_1 + i));
+            addInput(createInputCentered<PJ301MPort>(Vec(18, 113 + i * 28), module, VstFxModule::PARAM_CV_INPUT_1 + i));
             PluginParameterSlotWidget* slot1 = new PluginParameterSlotWidget(module ? &module->controller : nullptr, i);
-            slot1->box.pos = Vec(42, 102 + i * 28);
+            slot1->box.pos = Vec(35, 102 + i * 28);
             addChild(slot1);
 
             // Column 2 (Right)
-            addInput(createInputCentered<PJ301MPort>(Vec(117, 113 + i * 28), module, VstFxModule::PARAM_CV_INPUT_1 + 8 + i));
+            addInput(createInputCentered<PJ301MPort>(Vec(123, 113 + i * 28), module, VstFxModule::PARAM_CV_INPUT_1 + 8 + i));
             PluginParameterSlotWidget* slot2 = new PluginParameterSlotWidget(module ? &module->controller : nullptr, 8 + i);
-            slot2->box.pos = Vec(137, 102 + i * 28);
+            slot2->box.pos = Vec(140, 102 + i * 28);
             addChild(slot2);
         }
     }

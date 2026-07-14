@@ -16,7 +16,9 @@ SOURCES += dep/vst3sdk/pluginterfaces/base/funknown.cpp
 SOURCES += dep/vst3sdk/pluginterfaces/base/coreiids.cpp
 SOURCES += dep/vst3sdk/public.sdk/source/vst/vstinitiids.cpp
 SOURCES += dep/vst3sdk/public.sdk/source/common/commoniids.cpp
-SOURCES += $(wildcard src/doom/*.c)
+# icon.c contains standalone desktop-window icon pixels. VCV Doom renders
+# inside Rack and never consumes them, so do not compile the unused data blob.
+SOURCES += $(filter-out src/doom/icon.c,$(wildcard src/doom/*.c))
 
 # Rack loads panel SVGs from the installed plugin directory at runtime. Include
 # all panel assets in the distributable archive, not only plugin.json.
