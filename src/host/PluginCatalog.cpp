@@ -36,6 +36,16 @@ size_t PluginCatalog::size() const {
     return descriptors.size();
 }
 
+std::vector<PluginDescriptor> PluginCatalog::snapshot() const {
+    std::lock_guard<std::mutex> lock(mutex);
+    return descriptors;
+}
+
+void PluginCatalog::replace(std::vector<PluginDescriptor> newDescriptors) {
+    std::lock_guard<std::mutex> lock(mutex);
+    descriptors = std::move(newDescriptors);
+}
+
 bool PluginCatalog::loadFromFile(const std::string& path) {
     clear();
     json_error_t error;
@@ -99,8 +109,25 @@ bool PluginCatalog::loadFromFile(const std::string& path) {
 }
 
 bool PluginCatalog::saveToFile(const std::string& path) {
+    return saveToFile(path, 0, {});
+}
+
+bool PluginCatalog::saveToFile(
+    const std::string& path,
+    int64_t generatedAt,
+    const std::vector<std::pair<std::string, int64_t>>& rootSignatures
+) {
     std::lock_guard<std::mutex> lock(mutex);
     json_t* root = json_object();
+    json_object_set_new(root, "cacheVersion", json_integer(1));
+    json_object_set_new(root, "generatedAt", json_integer(generatedAt));
+
+    json_t* roots = json_object();
+    for (const auto& signature : rootSignatures) {
+        json_object_set_new(roots, signature.first.c_str(), json_integer(signature.second));
+    }
+    json_object_set_new(root, "rootSignatures", roots);
+
     json_t* array = json_array();
 
     for (const auto& desc : descriptors) {

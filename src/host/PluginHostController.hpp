@@ -7,6 +7,7 @@
 #include "HostedPluginInstance.hpp"
 #include "PluginCatalog.hpp"
 #include "PluginScanner.hpp"
+#include "SharedPluginDiscovery.hpp"
 #include "ParameterMapping.hpp"
 
 namespace ifrit {
@@ -17,9 +18,9 @@ public:
     ~PluginHostController();
 
     // Catalog & Scanning
-    PluginCatalog& getCatalog() { return catalog; }
-    PluginScanner& getScanner() { return scanner; }
-    void startScan(const std::vector<std::string>& customDirectories = {});
+    PluginCatalog& getCatalog();
+    PluginScanner& getScanner();
+    void startScan(const std::vector<std::string>& customDirectories = {}, bool force = false);
 
     // Asynchronous Loading/Unloading
     void loadPluginAsync(const PluginDescriptor& desc);
@@ -48,8 +49,11 @@ public:
     // Editor Window
     bool hasEditor() const;
     void openEditor(void* parentWindowHandle, int x, int y, int width, int height);
+    void hideEditor();
     void closeEditor();
     bool isEditorOpen() const;
+    void setEditorPrewarmEnabled(bool enabled);
+    bool isEditorPrewarmEnabled() const { return editorPrewarmEnabled.load(); }
 
     // UI Tick (called on Rack main thread)
     void stepUI();
@@ -69,9 +73,8 @@ private:
     };
     PendingLifecycleOperation pendingLifecycleOperation = PendingLifecycleOperation::Idle;
     PluginDescriptor pendingDescriptor;
-
-    PluginCatalog catalog;
-    PluginScanner scanner;
+    int editorPrewarmFrames = 0;
+    std::atomic<bool> editorPrewarmEnabled {false};
 
     ParameterMapping mappings[16];
     std::atomic<int> learnSlotIndex;

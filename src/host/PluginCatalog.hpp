@@ -3,6 +3,8 @@
 #include <vector>
 #include <string>
 #include <mutex>
+#include <cstdint>
+#include <utility>
 #include "PluginDescriptor.hpp"
 
 namespace ifrit {
@@ -16,10 +18,17 @@ public:
     void addDescriptor(const PluginDescriptor& desc);
     const std::vector<PluginDescriptor>& getDescriptors() const { return descriptors; }
     size_t size() const;
+    std::vector<PluginDescriptor> snapshot() const;
+    void replace(std::vector<PluginDescriptor> newDescriptors);
 
     // Serialization
     bool loadFromFile(const std::string& path);
     bool saveToFile(const std::string& path);
+    bool saveToFile(
+        const std::string& path,
+        int64_t generatedAt,
+        const std::vector<std::pair<std::string, int64_t>>& rootSignatures
+    );
 
     // Search and filtering
     std::vector<PluginDescriptor> search(const std::string& query, bool effectsOnly, bool instrumentsOnly) const;

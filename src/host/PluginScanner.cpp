@@ -62,35 +62,31 @@ void PluginScanner::startScan(const std::vector<std::string>& customDirectories)
     scanThread = new std::thread(&PluginScanner::scanLoop, this, customDirectories);
 }
 
-void PluginScanner::scanLoop(const std::vector<std::string>& customDirectories) {
-    catalog.clear();
-
-    // 1. Gather all directories to scan
+std::vector<std::string> PluginScanner::defaultDirectories() {
     std::vector<std::string> dirs;
-    
 #if defined(_WIN32)
     char* commonFiles = std::getenv("COMMONPROGRAMFILES");
-    if (commonFiles) {
-        dirs.push_back(std::string(commonFiles) + "\\VST3");
-    } else {
-        dirs.push_back("C:\\Program Files\\Common Files\\VST3");
-    }
-    
+    dirs.push_back(commonFiles ? std::string(commonFiles) + "\\VST3"
+                               : "C:\\Program Files\\Common Files\\VST3");
+
     char* localAppData = std::getenv("LOCALAPPDATA");
     if (localAppData) {
         dirs.push_back(std::string(localAppData) + "\\Programs\\Common\\VST3");
     }
 #else
-    // Standard Linux paths
     dirs.push_back("/usr/lib/vst3");
     dirs.push_back("/usr/local/lib/vst3");
-    
     char* home = std::getenv("HOME");
-    if (home) {
-        std::string homeVst3 = std::string(home) + "/.vst3";
-        dirs.push_back(homeVst3);
-    }
+    if (home) dirs.push_back(std::string(home) + "/.vst3");
 #endif
+    return dirs;
+}
+
+void PluginScanner::scanLoop(const std::vector<std::string>& customDirectories) {
+    PluginCatalog scannedCatalog;
+
+    // 1. Gather all directories to scan
+    std::vector<std::string> dirs = defaultDirectories();
 
     // Add user custom paths
     for (const auto& d : customDirectories) {
@@ -103,24 +99,30 @@ void PluginScanner::scanLoop(const std::vector<std::string>& customDirectories) 
     int totalDirs = (int)dirs.size();
     for (int i = 0; i < totalDirs; ++i) {
         if (cancelRequested) break;
-        scanDirectory(dirs[i]);
+        scanDirectory(dirs[i], scannedCatalog);
         progress = (float)(i + 1) / (float)totalDirs;
     }
 
+    if (!cancelRequested) {
+        catalog.replace(scannedCatalog.snapshot());
+        if (completionCallback) completionCallback();
+    }
     scanning = false;
     progress = 1.0f;
 }
 
-void PluginScanner::scanDirectory(const std::string& path) {
+void PluginScanner::scanDirectory(const std::string& path, PluginCatalog& destination) {
     if (!fs::exists(path) || !fs::is_directory(path)) {
         return;
     }
 
     try {
-        for (const auto& entry : fs::recursive_directory_iterator(path, fs::directory_options::skip_permission_denied)) {
+        fs::recursive_directory_iterator entry(path, fs::directory_options::skip_permission_denied);
+        const fs::recursive_directory_iterator end;
+        for (; entry != end; ++entry) {
             if (cancelRequested) break;
 
-            const auto& p = entry.path();
+            const auto& p = entry->path();
             if (p.extension() == ".vst3") {
                 if (fs::is_directory(p)) {
                     // Standard VST3 bundle directory
@@ -133,18 +135,21 @@ void PluginScanner::scanDirectory(const std::string& path) {
                         for (const auto& subEntry : fs::directory_iterator(binPath)) {
 #if defined(_WIN32)
                             if (subEntry.path().extension() == ".vst3" || subEntry.path().extension() == ".dll") {
-                                scanPluginFile(subEntry.path().string());
+                                scanPluginFile(subEntry.path().string(), destination);
                             }
 #else
                             if (subEntry.path().extension() == ".so") {
-                                scanPluginFile(subEntry.path().string());
+                                scanPluginFile(subEntry.path().string(), destination);
                             }
 #endif
                         }
                     }
+                    // The bundle binary was handled above. Do not recursively
+                    // encounter and load that same .vst3 file a second time.
+                    entry.disable_recursion_pending();
                 } else if (fs::is_regular_file(p)) {
                     // Direct file VST3 (often symlinks or flat setups)
-                    scanPluginFile(p.string());
+                    scanPluginFile(p.string(), destination);
                 }
             }
         }
@@ -153,7 +158,7 @@ void PluginScanner::scanDirectory(const std::string& path) {
     }
 }
 
-void PluginScanner::scanPluginFile(const std::string& path) {
+void PluginScanner::scanPluginFile(const std::string& path, PluginCatalog& destination) {
     // 1. Dynamic Load
 #if defined(_WIN32)
     HMODULE handle = LoadLibraryA(path.c_str());
@@ -257,7 +262,7 @@ void PluginScanner::scanPluginFile(const std::string& path) {
             }
 
             // Add to catalog
-            catalog.addDescriptor(desc);
+            destination.addDescriptor(desc);
         }
     }
 

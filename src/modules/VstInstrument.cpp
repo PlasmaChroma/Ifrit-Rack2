@@ -212,6 +212,8 @@ struct VstInstrumentModule : Module {
     json_t* dataToJson() override {
         json_t* rootJ = json_object();
 
+        json_object_set_new(rootJ, "editorPrewarm", json_boolean(controller.isEditorPrewarmEnabled()));
+
         // Save mappings
         json_t* mappingsJ = json_array();
         for (int i = 0; i < 16; ++i) {
@@ -251,6 +253,9 @@ struct VstInstrumentModule : Module {
     }
 
     void dataFromJson(json_t* rootJ) override {
+        json_t* editorPrewarmJ = json_object_get(rootJ, "editorPrewarm");
+        controller.setEditorPrewarmEnabled(json_is_true(editorPrewarmJ));
+
         // Load mappings
         json_t* mappingsJ = json_object_get(rootJ, "mappings");
         if (json_is_array(mappingsJ)) {
@@ -326,6 +331,16 @@ struct VstInstrumentModule : Module {
 struct VstInstrumentWidget : ModuleWidget {
     PluginBrowserOverlay* browserOverlay = nullptr;
 
+    ~VstInstrumentWidget() override {
+        if (browserOverlay) {
+            if (browserOverlay->parent) {
+                browserOverlay->parent->removeChild(browserOverlay);
+            }
+            delete browserOverlay;
+            browserOverlay = nullptr;
+        }
+    }
+
     VstInstrumentWidget(VstInstrumentModule* module) {
         setModule(module);
         
@@ -383,26 +398,45 @@ struct VstInstrumentWidget : ModuleWidget {
         }
     }
 
+    void appendContextMenu(Menu* menu) override {
+        ModuleWidget::appendContextMenu(menu);
+        VstInstrumentModule* module = dynamic_cast<VstInstrumentModule*>(this->module);
+        if (!module) return;
+
+        menu->addChild(new MenuSeparator());
+        menu->addChild(createMenuLabel("VST Editor"));
+        menu->addChild(createCheckMenuItem(
+            "Pre-warm editor after plugin load", "",
+            [=]() { return module->controller.isEditorPrewarmEnabled(); },
+            [=]() {
+                module->controller.setEditorPrewarmEnabled(
+                    !module->controller.isEditorPrewarmEnabled());
+            }
+        ));
+    }
+
     void openBrowser() {
         VstInstrumentModule* module = dynamic_cast<VstInstrumentModule*>(this->module);
         if (!module) return;
 
         if (browserOverlay) {
-            removeChild(browserOverlay);
+            if (browserOverlay->parent) {
+                browserOverlay->parent->removeChild(browserOverlay);
+            }
             delete browserOverlay;
             browserOverlay = nullptr;
         }
 
         browserOverlay = new PluginBrowserOverlay(&module->controller, true); // true = instruments only
-        browserOverlay->box.pos = Vec(5, 30);
+        browserOverlay->box.pos = getAbsoluteOffset(Vec(5.0f, 6.0f));
         browserOverlay->onClose = [this]() {
             if (this->browserOverlay) {
-                this->removeChild(this->browserOverlay);
-                delete this->browserOverlay;
+                this->browserOverlay->requestDelete();
                 this->browserOverlay = nullptr;
             }
         };
-        addChild(browserOverlay);
+        // Scene-level placement keeps the selector above Rack's cable layer.
+        APP->scene->addChild(browserOverlay);
     }
 };
 

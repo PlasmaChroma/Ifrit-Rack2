@@ -47,7 +47,12 @@ public:
     virtual bool hasNativeEditor() const override;
     virtual EditorOpenResult openEditor(void* parentWindowHandle, int x, int y, int width, int height) override;
     virtual void closeEditor() override;
-    virtual bool isEditorVisible() const override { return editorOpen; }
+    virtual bool isEditorVisible() const override { return editorVisible; }
+    void hideEditor();
+
+    // Creates and attaches the editor off-screen on the UI thread, allowing a
+    // later openEditor() call to show it without paying first-open setup cost.
+    bool prepareEditor();
 
     // UI event loop polling (called on Rack main thread)
     void stepUI();
@@ -97,6 +102,7 @@ private:
     ::Window xWindow;
 #endif
     std::atomic<bool> editorOpen;
+    std::atomic<bool> editorVisible;
 };
 
 } // namespace ifrit

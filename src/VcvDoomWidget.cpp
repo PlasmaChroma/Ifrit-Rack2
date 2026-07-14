@@ -261,7 +261,7 @@ struct VcvDoomViewportWidget final : Widget {
 					bool pressed = (glfwGetKey(win, k) == GLFW_PRESS);
 					if (pressed != physicalKeyStates[k]) {
 						physicalKeyStates[k] = pressed;
-						if (k == GLFW_KEY_0 && pressed) {
+						if (k == GLFW_KEY_EQUAL && pressed) {
 							releaseCapture();
 							break;
 						}
@@ -316,8 +316,8 @@ struct VcvDoomViewportWidget final : Widget {
 			return;
 		}
 
-		// 0 is reserved as the explicit path back to Rack while captured.
-		if (e.key == GLFW_KEY_0) {
+		// = is reserved as the explicit path back to Rack while captured.
+		if (e.key == GLFW_KEY_EQUAL) {
 			if (e.action == GLFW_PRESS) {
 				releaseCapture();
 			}
@@ -431,7 +431,7 @@ struct VcvDoomViewportWidget final : Widget {
 			nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
 			nvgFillColor(args.vg, nvgRGBA(0, 255, 204, 230));
 			nvgText(args.vg, box.size.x / 2.f, 4.f,
-				"MOVE MOUSE TO TURN  -  PRESS 0 TO RELEASE", nullptr);
+				"MOVE MOUSE TO TURN  -  PRESS = TO RELEASE", nullptr);
 		}
 
 		// Draw focus indicator (glowing border / brackets)

@@ -21,7 +21,7 @@ void PluginParameterSlotWidget::draw(const DrawArgs& args) {
     bool assigned = false;
     bool learning = false;
     std::string labelText = "---";
-    NVGcolor textColor = nvgRGBA(140, 150, 160, 160);
+    NVGcolor textColor = nvgRGBA(155, 120, 100, 165);
 
     if (controller) {
         ParameterMapping& map = controller->getMapping(slotIndex);
@@ -29,13 +29,13 @@ void PluginParameterSlotWidget::draw(const DrawArgs& args) {
         assigned = map.assigned;
         if (learning) {
             labelText = "LEARN";
-            textColor = nvgRGBA(0, 255, 204, 255);
+            textColor = nvgRGBA(255, 174, 55, 255);
         } else if (assigned) {
             labelText = map.cachedShortTitle;
             if (labelText.empty()) {
                 labelText = map.cachedTitle;
             }
-            textColor = nvgRGBA(255, 255, 255, 220);
+            textColor = nvgRGBA(255, 239, 218, 225);
         }
     }
 
@@ -79,11 +79,11 @@ void PluginParameterSlotWidget::MapButton::draw(const DrawArgs& args) {
     if (learning) {
         flashCounter = (flashCounter + 1) % 60;
         if (flashCounter < 30) {
-            color = nvgRGBA(0, 255, 204, 255); // flashing active cyan
+            color = nvgRGBA(255, 174, 55, 255); // flashing flame yellow
         }
         drawPlus = false;
     } else if (assigned) {
-        color = nvgRGBA(0, 255, 204, 255); // solid mapped cyan
+        color = nvgRGBA(255, 92, 28, 255); // solid mapped orange
         drawPlus = false;
     }
 
@@ -109,7 +109,7 @@ void PluginParameterSlotWidget::MapButton::draw(const DrawArgs& args) {
         nvgLineTo(args.vg, 6.0f, 8.0f);
         nvgMoveTo(args.vg, 4.0f, 6.0f);
         nvgLineTo(args.vg, 8.0f, 6.0f);
-        nvgStrokeColor(args.vg, nvgRGBA(140, 150, 160, 200));
+        nvgStrokeColor(args.vg, nvgRGBA(175, 135, 110, 200));
         nvgStrokeWidth(args.vg, 1.0f);
         nvgStroke(args.vg);
     }

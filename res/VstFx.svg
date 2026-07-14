@@ -2,14 +2,14 @@
   <defs>
     <!-- Dark glassmorphic background gradient -->
     <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0c0f12" />
-      <stop offset="100%" stop-color="#141a20" />
+      <stop offset="0%" stop-color="#120907" />
+      <stop offset="100%" stop-color="#24120d" />
     </linearGradient>
     
-    <!-- Cyberpunk neon cyan glow -->
+    <!-- Ember-to-coal edge glow -->
     <linearGradient id="borderGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#00ffcc" stop-opacity="0.3" />
-      <stop offset="100%" stop-color="#005544" stop-opacity="0.1" />
+      <stop offset="0%" stop-color="#ff5c1c" stop-opacity="0.42" />
+      <stop offset="100%" stop-color="#6e180b" stop-opacity="0.14" />
     </linearGradient>
   </defs>
 
@@ -21,17 +21,17 @@
 
   <!-- Static panel furniture. This is deliberately in the SVG so Rack's module
        browser preview reads as a complete module before dynamic widgets draw. -->
-  <text x="105" y="13" font-family="sans-serif" font-size="7" font-weight="bold" fill="#d8fff7" text-anchor="middle" letter-spacing="2">VST FX</text>
-  <rect x="10" y="20" width="190" height="38" rx="4" fill="#0f1419" stroke="#00ffcc" stroke-opacity=".22" />
-  <text x="20" y="38" font-family="monospace" font-size="8" fill="#9eabb5">PLUGIN HOST</text>
-  <path d="M181 39 C186 32,194 32,199 39 C194 46,186 46,181 39 Z" fill="none" stroke="#91a3b0" stroke-opacity=".55" />
-  <circle cx="190" cy="39" r="3" fill="none" stroke="#91a3b0" stroke-opacity=".55" />
-  <circle cx="105" cy="75" r="9" fill="#10171c" stroke="#00ffcc" stroke-opacity=".35" />
-  <line x1="105" y1="68" x2="105" y2="76" stroke="#d8fff7" stroke-opacity=".5" stroke-width="1.5" />
-  <line x1="14" y1="99" x2="196" y2="99" stroke="#00ffcc" stroke-opacity=".22" />
-  <text x="18" y="99" font-family="monospace" font-size="5.5" fill="#6f858a" text-anchor="middle">CV</text>
-  <text x="123" y="99" font-family="monospace" font-size="5.5" fill="#6f858a" text-anchor="middle">CV</text>
-  <g fill="#0b1116" stroke="#00ffcc" stroke-opacity=".15">
+  <text x="105" y="13" font-family="sans-serif" font-size="7" font-weight="bold" fill="#fff0dc" text-anchor="middle" letter-spacing="2">VST FX</text>
+  <rect x="10" y="20" width="190" height="38" rx="4" fill="#1a0e0b" stroke="#ff5c1c" stroke-opacity=".30" />
+  <text x="20" y="38" font-family="monospace" font-size="8" fill="#c59b82">PLUGIN HOST</text>
+  <path d="M181 39 C186 32,194 32,199 39 C194 46,186 46,181 39 Z" fill="none" stroke="#d08b62" stroke-opacity=".65" />
+  <circle cx="190" cy="39" r="3" fill="none" stroke="#d08b62" stroke-opacity=".65" />
+  <circle cx="105" cy="75" r="9" fill="#1b0e0a" stroke="#ff5c1c" stroke-opacity=".48" />
+  <line x1="105" y1="68" x2="105" y2="76" stroke="#fff0dc" stroke-opacity=".6" stroke-width="1.5" />
+  <line x1="14" y1="99" x2="196" y2="99" stroke="#ff5c1c" stroke-opacity=".30" />
+  <text x="18" y="99" font-family="monospace" font-size="5.5" fill="#a47761" text-anchor="middle">CV</text>
+  <text x="123" y="99" font-family="monospace" font-size="5.5" fill="#a47761" text-anchor="middle">CV</text>
+  <g fill="#160b08" stroke="#ff5c1c" stroke-opacity=".22">
     <rect x="35" y="102" width="67" height="22" rx="2"/><rect x="140" y="102" width="67" height="22" rx="2"/>
     <rect x="35" y="130" width="67" height="22" rx="2"/><rect x="140" y="130" width="67" height="22" rx="2"/>
     <rect x="35" y="158" width="67" height="22" rx="2"/><rect x="140" y="158" width="67" height="22" rx="2"/>
@@ -41,12 +41,12 @@
     <rect x="35" y="270" width="67" height="22" rx="2"/><rect x="140" y="270" width="67" height="22" rx="2"/>
     <rect x="35" y="298" width="67" height="22" rx="2"/><rect x="140" y="298" width="67" height="22" rx="2"/>
   </g>
-  <line x1="14" y1="330" x2="196" y2="330" stroke="#00ffcc" stroke-opacity=".22" />
-  <g fill="#10171c" stroke="#00ffcc" stroke-opacity=".22"><circle cx="30" cy="345" r="11"/><circle cx="75" cy="345" r="11"/><circle cx="135" cy="345" r="11"/><circle cx="180" cy="345" r="11"/></g>
-  <g font-family="monospace" font-size="5.5" fill="#6f858a" text-anchor="middle"><text x="30" y="335">IN L</text><text x="75" y="335">IN R</text><text x="135" y="335">OUT L</text><text x="180" y="335">OUT R</text></g>
+  <line x1="14" y1="330" x2="196" y2="330" stroke="#ff5c1c" stroke-opacity=".30" />
+  <g fill="#1b0e0a" stroke="#ff5c1c" stroke-opacity=".30"><circle cx="30" cy="345" r="11"/><circle cx="75" cy="345" r="11"/><circle cx="135" cy="345" r="11"/><circle cx="180" cy="345" r="11"/></g>
+  <g font-family="monospace" font-size="5.5" fill="#a47761" text-anchor="middle"><text x="30" y="335">IN L</text><text x="75" y="335">IN R</text><text x="135" y="335">OUT L</text><text x="180" y="335">OUT R</text></g>
 
   <!-- Section Headers / Labels -->
-  <text x="105" y="93" font-family="monospace" font-size="8" font-weight="bold" fill="#00ffcc" fill-opacity="0.7" text-anchor="middle" letter-spacing="1">BYPASS</text>
+  <text x="105" y="93" font-family="monospace" font-size="8" font-weight="bold" fill="#ff6f27" fill-opacity="0.85" text-anchor="middle" letter-spacing="1">BYPASS</text>
   
-  <text x="105" y="367" font-family="monospace" font-size="7" font-weight="bold" fill="#00ffcc" fill-opacity="0.6" text-anchor="middle" letter-spacing="0.5">I / O  S T E R E O</text>
+  <text x="105" y="367" font-family="monospace" font-size="7" font-weight="bold" fill="#ff6f27" fill-opacity="0.75" text-anchor="middle" letter-spacing="0.5">I / O  S T E R E O</text>
 </svg>

@@ -25,7 +25,7 @@ LRESULT CALLBACK vst3EditorWindowProc(HWND window, UINT message, WPARAM wParam, 
     if (message == WM_CLOSE) {
         auto* backend = reinterpret_cast<Vst3Backend*>(GetWindowLongPtrA(window, GWLP_USERDATA));
         if (backend) {
-            backend->closeEditor();
+            backend->hideEditor();
             return 0;
         }
     }
@@ -111,6 +111,7 @@ Vst3Backend::Vst3Backend() {
 #endif
     xWindow = 0;
     editorOpen = false;
+    editorVisible = false;
 }
 
 Vst3Backend::~Vst3Backend() {
@@ -130,6 +131,7 @@ void Vst3Backend::clearPointers() {
     view = nullptr;
     editorFrame = nullptr;
     editorAvailable = false;
+    editorVisible = false;
 }
 
 PluginLoadResult Vst3Backend::load(const PluginDescriptor& descriptor) {
@@ -557,7 +559,19 @@ bool Vst3Backend::hasNativeEditor() const {
 
 EditorOpenResult Vst3Backend::openEditor(void* parentWindowHandle, int x, int y, int width, int height) {
     if (!loaded || !controller) return EditorOpenResult::NoEditor;
-    if (editorOpen) return EditorOpenResult::AlreadyOpen;
+    if (editorOpen) {
+#if defined(_WIN32)
+        if (!editorVisible && xWindow) {
+            SetWindowPos(xWindow, HWND_TOPMOST, x, y, 0, 0,
+                         SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+            ShowWindow(xWindow, SW_SHOW);
+            UpdateWindow(xWindow);
+            editorVisible = true;
+            return EditorOpenResult::Ok;
+        }
+#endif
+        return EditorOpenResult::AlreadyOpen;
+    }
 
     INFO("Ifrit VST3 editor: createView begin (%s)", pluginName.c_str());
     view = controller->createView(Steinberg::Vst::ViewType::kEditor);
@@ -696,7 +710,41 @@ EditorOpenResult Vst3Backend::openEditor(void* parentWindowHandle, int x, int y,
 #endif
 
     editorOpen = true;
+    editorVisible = true;
     return EditorOpenResult::Ok;
+}
+
+bool Vst3Backend::prepareEditor() {
+#if defined(_WIN32)
+    if (!hasNativeEditor()) return false;
+    if (editorOpen) return true;
+
+    INFO("Ifrit VST3 editor: prewarm begin (%s)", pluginName.c_str());
+    const EditorOpenResult result = openEditor(nullptr, -32000, -32000, 640, 480);
+    if (result != EditorOpenResult::Ok || !xWindow) {
+        WARN("Ifrit VST3 editor: prewarm failed (%s)", pluginName.c_str());
+        return false;
+    }
+
+    ShowWindow(xWindow, SW_HIDE);
+    editorVisible = false;
+    INFO("Ifrit VST3 editor: prewarm end (%s)", pluginName.c_str());
+    return true;
+#else
+    return false;
+#endif
+}
+
+void Vst3Backend::hideEditor() {
+    if (!editorOpen) return;
+#if defined(_WIN32)
+    if (xWindow) {
+        ShowWindow(xWindow, SW_HIDE);
+        editorVisible = false;
+    }
+#else
+    closeEditor();
+#endif
 }
 
 void Vst3Backend::closeEditor() {
@@ -732,6 +780,7 @@ void Vst3Backend::closeEditor() {
 #endif
 
     editorOpen = false;
+    editorVisible = false;
 }
 
 void Vst3Backend::stepUI() {

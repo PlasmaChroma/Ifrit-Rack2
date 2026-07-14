@@ -5,7 +5,8 @@
 
 namespace ifrit {
 
-PluginHostController::PluginHostController() : scanner(catalog) {
+PluginHostController::PluginHostController() {
+    SharedPluginDiscovery::instance().getCatalog();
     loading = false;
     learnSlotIndex = -1;
 
@@ -27,8 +28,16 @@ PluginHostController::~PluginHostController() {
     }
 }
 
-void PluginHostController::startScan(const std::vector<std::string>& customDirectories) {
-    scanner.startScan(customDirectories);
+void PluginHostController::startScan(const std::vector<std::string>& customDirectories, bool force) {
+    SharedPluginDiscovery::instance().requestScan(customDirectories, force);
+}
+
+PluginCatalog& PluginHostController::getCatalog() {
+    return SharedPluginDiscovery::instance().getCatalog();
+}
+
+PluginScanner& PluginHostController::getScanner() {
+    return SharedPluginDiscovery::instance().getScanner();
 }
 
 void PluginHostController::loadPluginAsync(const PluginDescriptor& desc) {
@@ -195,10 +204,34 @@ void PluginHostController::closeEditor() {
     loading = false;
 }
 
+void PluginHostController::hideEditor() {
+    HostedPluginInstance* inst = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(instanceMutex);
+        inst = activeInstance;
+    }
+    if (inst) {
+        inst->backend->hideEditor();
+    }
+}
+
 bool PluginHostController::isEditorOpen() const {
     std::lock_guard<std::mutex> lock(instanceMutex);
     HostedPluginInstance* inst = activeInstance;
     return inst ? inst->backend->isEditorVisible() : false;
+}
+
+void PluginHostController::setEditorPrewarmEnabled(bool enabled) {
+    editorPrewarmEnabled.store(enabled);
+
+    // Enabling the option for an already-loaded plugin should take effect
+    // without requiring the user to reload it. Keep the same short frame delay
+    // used after loading so the context-menu event can finish first.
+    if (enabled && isLoaded() && !isEditorOpen()) {
+        editorPrewarmFrames = 2;
+    } else if (!enabled) {
+        editorPrewarmFrames = 0;
+    }
 }
 
 void PluginHostController::stepUI() {
@@ -235,8 +268,12 @@ void PluginHostController::stepUI() {
                 activeInstance = newInstance;
             }
             retireInstance(oldInstance);
+            // Editor creation can be expensive and runs on Rack's UI thread.
+            // Keep it lazy unless the user explicitly opts into prewarming.
+            editorPrewarmFrames = editorPrewarmEnabled.load() ? 2 : 0;
         } else {
             delete newInstance;
+            editorPrewarmFrames = 0;
         }
         loading = false;
     } else if (operation == PendingLifecycleOperation::Unload) {
@@ -247,13 +284,29 @@ void PluginHostController::stepUI() {
             activeInstance = nullptr;
         }
         retireInstance(oldInstance);
+        editorPrewarmFrames = 0;
         loading = false;
     }
 
-    std::lock_guard<std::mutex> lock(instanceMutex);
-    HostedPluginInstance* inst = activeInstance;
-    if (inst) {
-        inst->backend->stepUI();
+    Vst3Backend* backend = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(instanceMutex);
+        if (activeInstance) {
+            backend = activeInstance->backend;
+        }
+    }
+
+    if (backend && editorPrewarmFrames > 0) {
+        --editorPrewarmFrames;
+        if (editorPrewarmFrames == 0) {
+            // No instance lock is held: attached() may synchronously call back
+            // into the controller while the editor is being prepared.
+            backend->prepareEditor();
+        }
+    }
+
+    if (backend) {
+        backend->stepUI();
     }
 }
 

@@ -43,13 +43,13 @@ void PluginIdentityDisplay::draw(const DrawArgs& args) {
     // Rounded rectangle background
     nvgBeginPath(args.vg);
     nvgRoundedRect(args.vg, 0.0f, 0.0f, box.size.x, box.size.y, 4.0f);
-    nvgFillColor(args.vg, nvgRGBA(15, 20, 25, 220));
+    nvgFillColor(args.vg, nvgRGBA(25, 13, 10, 225));
     nvgFill(args.vg);
 
-    // Neon highlight border
+    // Ember highlight border
     nvgBeginPath(args.vg);
     nvgRoundedRect(args.vg, 0.0f, 0.0f, box.size.x, box.size.y, 4.0f);
-    nvgStrokeColor(args.vg, loaded ? nvgRGBA(0, 255, 204, 80) : nvgRGBA(180, 200, 220, 40));
+    nvgStrokeColor(args.vg, loaded ? nvgRGBA(255, 92, 28, 100) : nvgRGBA(205, 145, 110, 45));
     nvgStrokeWidth(args.vg, 1.0f);
     nvgStroke(args.vg);
 
@@ -59,13 +59,13 @@ void PluginIdentityDisplay::draw(const DrawArgs& args) {
     // Plugin Name
     nvgFontSize(args.vg, 11.0f);
     nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
-    nvgFillColor(args.vg, loaded ? nvgRGBA(255, 255, 255, 240) : nvgRGBA(180, 190, 200, 160));
+    nvgFillColor(args.vg, loaded ? nvgRGBA(255, 242, 224, 240) : nvgRGBA(195, 165, 145, 160));
     nvgText(args.vg, box.size.x / 2.0f, 5.0f, nameText.c_str(), nullptr);
 
     // Subtitle
     nvgFontSize(args.vg, 8.5f);
     nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
-    nvgFillColor(args.vg, loaded ? nvgRGBA(0, 255, 204, 160) : nvgRGBA(140, 150, 160, 120));
+    nvgFillColor(args.vg, loaded ? nvgRGBA(255, 116, 45, 190) : nvgRGBA(155, 115, 95, 130));
     nvgText(args.vg, box.size.x / 2.0f, 21.0f, subtitleText.c_str(), nullptr);
 
     nvgRestore(args.vg);

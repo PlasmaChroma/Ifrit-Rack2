@@ -19,6 +19,7 @@ public:
     std::function<void()> onClose;
 
 private:
+    void updateLayout();
     void rebuildList();
 
     PluginHostController* controller;
@@ -43,6 +44,7 @@ private:
     };
 
     SearchField* searchField;
+    rack::widget::Widget* closeButton;
     rack::ui::ScrollWidget* scrollWidget;
     rack::widget::Widget* container;
     std::string currentQuery;

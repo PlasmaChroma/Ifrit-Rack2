@@ -23,9 +23,9 @@ void PluginEditorEyeButton::draw(const DrawArgs& args) {
     if (!loaded || !hasEd) {
         eyeColor = nvgRGBA(80, 80, 80, 255); // Dark/closed/disabled
     } else if (open) {
-        eyeColor = nvgRGBA(0, 255, 204, 255); // Bright cyan (open/active)
+        eyeColor = nvgRGBA(255, 92, 28, 255); // Hot orange (open/active)
     } else {
-        eyeColor = nvgRGBA(180, 200, 220, 255); // Dim blue-gray (available)
+        eyeColor = nvgRGBA(205, 132, 92, 255); // Dim ember (available)
     }
 
     nvgSave(args.vg);
@@ -75,7 +75,7 @@ void PluginEditorEyeButton::onButton(const ButtonEvent& e) {
     }
 
     if (controller->isEditorOpen()) {
-        controller->closeEditor();
+        controller->hideEditor();
     } else {
         // Open parented to 0 (which defaults to a top-level window in our implementation)
         controller->openEditor(nullptr, 100, 100, 640, 480);
