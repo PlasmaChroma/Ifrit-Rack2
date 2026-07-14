@@ -597,7 +597,7 @@ EditorOpenResult Vst3Backend::openEditor(void* parentWindowHandle, int x, int y,
         AdjustWindowRect(&windowRect, WS_OVERLAPPEDWINDOW, FALSE);
         INFO("Ifrit VST3 editor: CreateWindowEx begin (%s)", pluginName.c_str());
         parent = CreateWindowExA(
-            0, kVst3EditorWindowClass, pluginName.c_str(), WS_OVERLAPPEDWINDOW,
+            WS_EX_TOPMOST | WS_EX_TOOLWINDOW, kVst3EditorWindowClass, pluginName.c_str(), WS_OVERLAPPEDWINDOW,
             x, y, windowRect.right - windowRect.left, windowRect.bottom - windowRect.top,
             nullptr, nullptr, GetModuleHandleA(nullptr), nullptr);
         if (!parent) {
@@ -615,6 +615,8 @@ EditorOpenResult Vst3Backend::openEditor(void* parentWindowHandle, int x, int y,
         // setFrame()/attached() are invoked.
         INFO("Ifrit VST3 editor: ShowWindow begin (%s)", pluginName.c_str());
         ShowWindow(xWindow, SW_SHOW);
+        SetWindowPos(xWindow, HWND_TOPMOST, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
         UpdateWindow(xWindow);
         INFO("Ifrit VST3 editor: ShowWindow end (%s)", pluginName.c_str());
     }

@@ -298,7 +298,8 @@ void FUID::toString (char8* string) const
 	char8 s[17];
 	Steinberg::toString8 (s, data, 8, 16);
 
-	sprintf (string, "%08X%04X%04X%s", g->Data1, g->Data2, g->Data3, s);
+	sprintf (string, "%08X%04X%04X%s", static_cast<unsigned int> (g->Data1), g->Data2,
+	         g->Data3, s);
 #else
 	Steinberg::toString8 (string, data, 0, 16);
 #endif
@@ -318,7 +319,9 @@ bool FUID::fromString (const char8* string)
 
 	strcpy (s, string);
 	s[8] = 0;
-	sscanf (s, "%x", &g.Data1);
+	unsigned int data1 = 0;
+	sscanf (s, "%x", &data1);
+	g.Data1 = static_cast<decltype (g.Data1)> (data1);
 	strcpy (s, string + 8);
 	s[4] = 0;
 	sscanf (s, "%hx", &g.Data2);
@@ -351,7 +354,9 @@ bool FUID::fromRegistryString (const char8* string)
 
 	strncpy (s, string + 1, 8);
 	s[8] = 0;
-	sscanf (s, "%x", &g.Data1);
+	unsigned int data1 = 0;
+	sscanf (s, "%x", &data1);
+	g.Data1 = static_cast<decltype (g.Data1)> (data1);
 	strncpy (s, string + 10, 4);
 	s[4] = 0;
 	sscanf (s, "%hx", &g.Data2);
@@ -387,7 +392,8 @@ void FUID::toRegistryString (char8* string) const
 	char8 s2[13];
 	Steinberg::toString8 (s2, data, 10, 16);
 
-	sprintf (string, "{%08X-%04X-%04X-%s-%s}", g->Data1, g->Data2, g->Data3, s1, s2);
+	sprintf (string, "{%08X-%04X-%04X-%s-%s}", static_cast<unsigned int> (g->Data1),
+	         g->Data2, g->Data3, s1, s2);
 #else
 	char8 s1[9];
 	Steinberg::toString8 (s1, data, 0, 4);

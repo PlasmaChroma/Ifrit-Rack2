@@ -329,7 +329,7 @@ struct VstInstrumentWidget : ModuleWidget {
     VstInstrumentWidget(VstInstrumentModule* module) {
         setModule(module);
         
-        // 10 HP Width
+        // 14 HP width gives each CV mapping a separate jack and label lane.
         setPanel(createPanel(asset::plugin(pluginInstance, "res/VstInstrument.svg")));
 
         // Identity display & Editor eye
@@ -341,36 +341,36 @@ struct VstInstrumentWidget : ModuleWidget {
         addChild(display);
 
         PluginEditorEyeButton* eye = new PluginEditorEyeButton(module ? &module->controller : nullptr);
-        eye->box.pos = Vec(116, 27);
+        eye->box.pos = Vec(176, 27);
         addChild(eye);
 
         // Bypass & Panic controls
         // SvgSwitch itself has no frames. CKSS and TL1105 include their frames;
         // TL1105 is momentary, which matches the panic trigger's semantics.
-        addParam(createParamCentered<CKSS>(Vec(45, 75), module, VstInstrumentModule::BYPASS_PARAM));
-        addParam(createParamCentered<TL1105>(Vec(105, 75), module, VstInstrumentModule::PANIC_PARAM));
+        addParam(createParamCentered<CKSS>(Vec(70, 75), module, VstInstrumentModule::BYPASS_PARAM));
+        addParam(createParamCentered<TL1105>(Vec(140, 75), module, VstInstrumentModule::PANIC_PARAM));
 
         // Audio & Poly CV ports (18-step spacing centered)
-        addInput(createInputCentered<PJ301MPort>(Vec(18, 345), module, VstInstrumentModule::VOCT_INPUT));
-        addInput(createInputCentered<PJ301MPort>(Vec(42, 345), module, VstInstrumentModule::GATE_INPUT));
-        addInput(createInputCentered<PJ301MPort>(Vec(66, 345), module, VstInstrumentModule::VELOCITY_INPUT));
-        addInput(createInputCentered<PJ301MPort>(Vec(90, 345), module, VstInstrumentModule::PRESSURE_INPUT));
+        addInput(createInputCentered<PJ301MPort>(Vec(20, 345), module, VstInstrumentModule::VOCT_INPUT));
+        addInput(createInputCentered<PJ301MPort>(Vec(54, 345), module, VstInstrumentModule::GATE_INPUT));
+        addInput(createInputCentered<PJ301MPort>(Vec(88, 345), module, VstInstrumentModule::VELOCITY_INPUT));
+        addInput(createInputCentered<PJ301MPort>(Vec(122, 345), module, VstInstrumentModule::PRESSURE_INPUT));
         
-        addOutput(createOutputCentered<PJ301MPort>(Vec(114, 345), module, VstInstrumentModule::AUDIO_LEFT_OUTPUT));
-        addOutput(createOutputCentered<PJ301MPort>(Vec(132, 345), module, VstInstrumentModule::AUDIO_RIGHT_OUTPUT));
+        addOutput(createOutputCentered<PJ301MPort>(Vec(156, 345), module, VstInstrumentModule::AUDIO_LEFT_OUTPUT));
+        addOutput(createOutputCentered<PJ301MPort>(Vec(190, 345), module, VstInstrumentModule::AUDIO_RIGHT_OUTPUT));
 
         // Mapping slots grid (2 columns of 8 rows)
         for (int i = 0; i < 8; ++i) {
             // Column 1 (Left)
-            addInput(createInputCentered<PJ301MPort>(Vec(25, 105 + i * 28), module, VstInstrumentModule::PARAM_CV_INPUT_1 + i));
+            addInput(createInputCentered<PJ301MPort>(Vec(22, 113 + i * 28), module, VstInstrumentModule::PARAM_CV_INPUT_1 + i));
             PluginParameterSlotWidget* slot1 = new PluginParameterSlotWidget(module ? &module->controller : nullptr, i);
-            slot1->box.pos = Vec(15, 115 + i * 28);
+            slot1->box.pos = Vec(42, 102 + i * 28);
             addChild(slot1);
 
             // Column 2 (Right)
-            addInput(createInputCentered<PJ301MPort>(Vec(95, 105 + i * 28), module, VstInstrumentModule::PARAM_CV_INPUT_1 + 8 + i));
+            addInput(createInputCentered<PJ301MPort>(Vec(117, 113 + i * 28), module, VstInstrumentModule::PARAM_CV_INPUT_1 + 8 + i));
             PluginParameterSlotWidget* slot2 = new PluginParameterSlotWidget(module ? &module->controller : nullptr, 8 + i);
-            slot2->box.pos = Vec(85, 115 + i * 28);
+            slot2->box.pos = Vec(137, 102 + i * 28);
             addChild(slot2);
         }
     }

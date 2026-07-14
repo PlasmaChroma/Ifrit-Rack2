@@ -6,10 +6,10 @@ namespace ifrit {
 
 PluginParameterSlotWidget::PluginParameterSlotWidget(PluginHostController* ctrl, int idx) 
     : controller(ctrl), slotIndex(idx) {
-    box.size = Vec(38, 28);
+    box.size = Vec(58, 22);
 
     mapButton = new MapButton(ctrl, idx);
-    mapButton->box.pos = Vec(13, 0);
+    mapButton->box.pos = Vec(43, 5);
     addChild(mapButton);
 }
 
@@ -40,8 +40,8 @@ void PluginParameterSlotWidget::draw(const DrawArgs& args) {
     }
 
     // Limit label length for UI
-    if (labelText.length() > 7) {
-        labelText = labelText.substr(0, 6) + ".";
+    if (labelText.length() > 8) {
+        labelText = labelText.substr(0, 7) + ".";
     }
 
     nvgSave(args.vg);
@@ -49,9 +49,9 @@ void PluginParameterSlotWidget::draw(const DrawArgs& args) {
     // Draw label text
     nvgFontFaceId(args.vg, APP->window->uiFont->handle);
     nvgFontSize(args.vg, 7.5f);
-    nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
+    nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
     nvgFillColor(args.vg, textColor);
-    nvgText(args.vg, box.size.x / 2.0f, 15.0f, labelText.c_str(), nullptr);
+    nvgText(args.vg, box.size.x / 2.0f, box.size.y / 2.0f, labelText.c_str(), nullptr);
 
     nvgRestore(args.vg);
 
