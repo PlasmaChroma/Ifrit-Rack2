@@ -7,7 +7,10 @@ namespace ifrit {
 
 class PluginBrowserOverlay : public rack::widget::OpaqueWidget {
 public:
-    PluginBrowserOverlay(PluginHostController* controller, bool instrumentsOnly);
+    PluginBrowserOverlay(
+        PluginHostController* controller,
+        bool instrumentsOnly,
+        rack::math::Vec moduleSize);
     ~PluginBrowserOverlay() = default;
 
     void draw(const rack::widget::Widget::DrawArgs& args) override;

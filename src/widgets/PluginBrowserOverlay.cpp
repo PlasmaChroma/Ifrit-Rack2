@@ -229,11 +229,12 @@ private:
 };
 
 // Main Browser Overlay Implementation
-PluginBrowserOverlay::PluginBrowserOverlay(PluginHostController* ctrl, bool instOnly) 
+PluginBrowserOverlay::PluginBrowserOverlay(
+    PluginHostController* ctrl,
+    bool instOnly,
+    Vec moduleSize)
     : controller(ctrl), instrumentsOnly(instOnly) {
-    // The modules are 210 x 380. This leaves a narrow five-pixel frame around
-    // the selector while covering essentially the entire panel.
-    box.size = Vec(200, 368);
+    box.size = moduleSize;
 
     // Search Field
     searchField = new SearchField();

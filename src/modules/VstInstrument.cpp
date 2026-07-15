@@ -427,16 +427,18 @@ struct VstInstrumentWidget : ModuleWidget {
             browserOverlay = nullptr;
         }
 
-        browserOverlay = new PluginBrowserOverlay(&module->controller, true); // true = instruments only
-        browserOverlay->box.pos = getAbsoluteOffset(Vec(5.0f, 6.0f));
+        browserOverlay = new PluginBrowserOverlay(
+            &module->controller,
+            true, // instruments only
+            box.size);
+        browserOverlay->box.pos = Vec(0.0f, 0.0f);
         browserOverlay->onClose = [this]() {
             if (this->browserOverlay) {
                 this->browserOverlay->requestDelete();
                 this->browserOverlay = nullptr;
             }
         };
-        // Scene-level placement keeps the selector above Rack's cable layer.
-        APP->scene->addChild(browserOverlay);
+        addChild(browserOverlay);
     }
 };
 
