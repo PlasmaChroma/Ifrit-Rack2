@@ -46,6 +46,9 @@ struct VcvDoomModule : Module {
 		float gate = 0.f;
 	};
 	Voice voices[16];
+	// MIDI pitch wheel is channel-wide.  Store it as a 1 V/octave offset so
+	// both held and newly-started notes receive the same bend.
+	float channelPitchBends[16] = {};
 	int voiceTriggerCounter = 0;
 	unsigned int musicGeneration = 0;
 

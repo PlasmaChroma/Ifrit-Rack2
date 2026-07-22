@@ -173,6 +173,7 @@ void VcvDoomModule::process(const ProcessArgs& args) {
 			for (int i = 0; i < 16; ++i) {
 				voices[i].gate = 0.f;
 				voices[i].note = -1;
+				channelPitchBends[i] = 0.f;
 			}
 		}
 
@@ -293,7 +294,8 @@ void VcvDoomModule::process(const ProcessArgs& args) {
 
 							voices[targetVoice].note = note;
 							voices[targetVoice].channel = channel;
-							voices[targetVoice].pitch = (float)(note - 60) / 12.f;
+							voices[targetVoice].pitch = (float)(note - 60) / 12.f
+								+ channelPitchBends[channel];
 							voices[targetVoice].gate = 10.f;
 						}
 					} else if (event->event_type == MIDI_EVENT_NOTE_OFF) {
@@ -303,6 +305,21 @@ void VcvDoomModule::process(const ProcessArgs& args) {
 							if (voices[i].note == note && voices[i].channel == channel) {
 								voices[i].gate = 0.f;
 								voices[i].note = -1;
+							}
+						}
+					} else if (event->event_type == MIDI_EVENT_PITCH_BEND) {
+						// MIDI pitch wheel is a 14-bit unsigned value whose centre is
+						// 8192. Doom's MUS converter emits these events for its slides.
+						// MIDI's default bend range is +/- 2 semitones.
+						int channel = event->data.channel.channel;
+						int wheel = (int)event->data.channel.param1
+							| ((int)event->data.channel.param2 << 7);
+						float bend = ((float)(wheel - 8192) / 8192.f) * (2.f / 12.f);
+						channelPitchBends[channel] = bend;
+
+						for (int i = 0; i < 16; ++i) {
+							if (voices[i].gate > 0.f && voices[i].channel == channel) {
+								voices[i].pitch = (float)(voices[i].note - 60) / 12.f + bend;
 							}
 						}
 					} else if (event->event_type == MIDI_EVENT_META && event->data.meta.type == MIDI_META_SET_TEMPO) {
